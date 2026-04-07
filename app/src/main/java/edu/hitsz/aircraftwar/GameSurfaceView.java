@@ -14,16 +14,19 @@ import androidx.annotation.NonNull;
 
 import java.util.List;
 
+import edu.hitsz.aircraftwar.audio.SoundEffect;
+import edu.hitsz.aircraftwar.audio.SoundManager;
 import edu.hitsz.aircraftwar.game.Difficulty;
 import edu.hitsz.aircraftwar.game.GameConfig;
 import edu.hitsz.aircraftwar.game.GameEngine;
 import edu.hitsz.aircraftwar.game.SpriteStore;
-import edu.hitsz.aircraftwar.game.model.AbstractAircraft;
 import edu.hitsz.aircraftwar.game.model.AbstractFlyingObject;
-import edu.hitsz.aircraftwar.game.model.AbstractProp;
-import edu.hitsz.aircraftwar.game.model.BaseBullet;
 
 public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
+
+    public interface GameSessionListener {
+        void onGameOver(int score, long durationSeconds, Difficulty difficulty);
+    }
 
     private static final long FRAME_DELAY_MS = 16L;
 
@@ -32,6 +35,9 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private final Paint hudPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint overlayPaint = new Paint();
     private final Paint overlayTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Difficulty difficulty;
+    private final GameSessionListener gameSessionListener;
+    private final SoundManager soundManager;
 
     private Thread renderThread;
     private volatile boolean running;
@@ -44,9 +50,17 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private SpriteStore spriteStore;
     private GameConfig gameConfig;
     private GameEngine gameEngine;
+    private boolean gameOverNotified;
 
-    public GameSurfaceView(Context context) {
+    public GameSurfaceView(
+            Context context,
+            Difficulty difficulty,
+            GameSessionListener gameSessionListener,
+            SoundManager soundManager) {
         super(context);
+        this.difficulty = difficulty;
+        this.gameSessionListener = gameSessionListener;
+        this.soundManager = soundManager;
         surfaceHolder = getHolder();
         surfaceHolder.addCallback(this);
         setFocusable(true);
@@ -73,9 +87,10 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
             screenWidth = Math.max(1, width);
             screenHeight = Math.max(1, height);
             spriteStore = new SpriteStore(getResources());
-            gameConfig = new GameConfig(Difficulty.NORMAL, screenWidth, screenHeight);
+            gameConfig = new GameConfig(difficulty, screenWidth, screenHeight);
             gameEngine = new GameEngine(gameConfig);
             backgroundOffsetY = 0f;
+            gameOverNotified = false;
         }
         startLoop();
     }
@@ -91,10 +106,7 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
             if (gameEngine == null) {
                 return super.onTouchEvent(event);
             }
-
-            if (event.getActionMasked() == MotionEvent.ACTION_DOWN && gameEngine.isGameOver()) {
-                gameEngine = new GameEngine(gameConfig);
-                backgroundOffsetY = 0f;
+            if (gameEngine.isGameOver()) {
                 return true;
             }
 
@@ -116,11 +128,29 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
             long now = SystemClock.uptimeMillis();
             long deltaMs = Math.max(1L, Math.min(40L, now - lastFrameTimeMs));
             lastFrameTimeMs = now;
+            boolean shouldNotifyGameOver = false;
+            int gameOverScore = 0;
+            long gameOverDurationSeconds = 0L;
 
             synchronized (gameStateLock) {
                 if (gameEngine != null) {
                     gameEngine.update(deltaMs);
+                    for (SoundEffect soundEffect : gameEngine.drainSoundEffects()) {
+                        soundManager.playEffect(soundEffect);
+                    }
+                    if (gameEngine.isGameOver() && !gameOverNotified) {
+                        gameOverNotified = true;
+                        shouldNotifyGameOver = true;
+                        gameOverScore = gameEngine.getScore();
+                        gameOverDurationSeconds = gameEngine.getElapsedMs() / 1000L;
+                    }
                 }
+            }
+
+            if (shouldNotifyGameOver && gameSessionListener != null) {
+                final int score = gameOverScore;
+                final long durationSeconds = gameOverDurationSeconds;
+                post(() -> gameSessionListener.onGameOver(score, durationSeconds, difficulty));
             }
 
             drawFrame();
@@ -208,7 +238,7 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private void drawGameOverOverlay(Canvas canvas) {
         canvas.drawRect(0f, 0f, screenWidth, screenHeight, overlayPaint);
         canvas.drawText("GAME OVER", screenWidth * 0.5f, screenHeight * 0.48f, overlayTextPaint);
-        canvas.drawText("Tap To Restart", screenWidth * 0.5f, screenHeight * 0.56f, overlayTextPaint);
+        canvas.drawText("Saving Result...", screenWidth * 0.5f, screenHeight * 0.56f, overlayTextPaint);
     }
 
     private synchronized void startLoop() {

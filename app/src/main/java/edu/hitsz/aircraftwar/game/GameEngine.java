@@ -1,8 +1,10 @@
 package edu.hitsz.aircraftwar.game;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import edu.hitsz.aircraftwar.audio.SoundEffect;
 import edu.hitsz.aircraftwar.game.factory.BossEnemyFactory;
 import edu.hitsz.aircraftwar.game.factory.EliteEnemyFactory;
 import edu.hitsz.aircraftwar.game.factory.ElitePlusEnemyFactory;
@@ -25,12 +27,13 @@ public class GameEngine {
     private final EnemyFactory elitePlusEnemyFactory = new ElitePlusEnemyFactory();
     private final EnemyFactory bossEnemyFactory = new BossEnemyFactory();
     private final DirectFireStrategy defaultHeroStrategy = new DirectFireStrategy();
+    private final List<SoundEffect> pendingSoundEffects = new ArrayList<>();
 
     private final HeroAircraft heroAircraft;
-    private final List<AbstractAircraft> enemyAircrafts = new java.util.ArrayList<>();
-    private final List<BaseBullet> heroBullets = new java.util.ArrayList<>();
-    private final List<BaseBullet> enemyBullets = new java.util.ArrayList<>();
-    private final List<AbstractProp> props = new java.util.ArrayList<>();
+    private final List<AbstractAircraft> enemyAircrafts = new ArrayList<>();
+    private final List<BaseBullet> heroBullets = new ArrayList<>();
+    private final List<BaseBullet> enemyBullets = new ArrayList<>();
+    private final List<AbstractProp> props = new ArrayList<>();
 
     private long elapsedMs;
     private long cycleTimerMs;
@@ -79,6 +82,7 @@ public class GameEngine {
 
         if (heroAircraft.notValid() || heroAircraft.getHp() <= 0) {
             gameOver = true;
+            pendingSoundEffects.add(SoundEffect.GAME_OVER);
         }
     }
 
@@ -98,6 +102,7 @@ public class GameEngine {
     }
 
     public void triggerBomb() {
+        pendingSoundEffects.add(SoundEffect.BOMB_EXPLOSION);
         for (AbstractAircraft enemyAircraft : enemyAircrafts) {
             if (enemyAircraft.notValid()) {
                 continue;
@@ -149,6 +154,12 @@ public class GameEngine {
         return gameOver;
     }
 
+    public List<SoundEffect> drainSoundEffects() {
+        List<SoundEffect> drained = new ArrayList<>(pendingSoundEffects);
+        pendingSoundEffects.clear();
+        return drained;
+    }
+
     public SpriteType getBackgroundSpriteType() {
         switch (config.getDifficulty()) {
             case EASY:
@@ -196,7 +207,11 @@ public class GameEngine {
         for (AbstractAircraft enemyAircraft : enemyAircrafts) {
             enemyBullets.addAll(enemyAircraft.shoot(config));
         }
-        heroBullets.addAll(heroAircraft.shoot(config));
+        List<BaseBullet> newHeroBullets = heroAircraft.shoot(config);
+        if (!newHeroBullets.isEmpty()) {
+            pendingSoundEffects.add(SoundEffect.BULLET);
+            heroBullets.addAll(newHeroBullets);
+        }
     }
 
     private void bulletsMoveAction() {
@@ -242,6 +257,7 @@ public class GameEngine {
                 if (enemyAircraft.crash(heroBullet)) {
                     enemyAircraft.decreaseHp(heroBullet.getPower());
                     heroBullet.vanish();
+                    pendingSoundEffects.add(SoundEffect.BULLET_HIT);
                     if (enemyAircraft.notValid()) {
                         score += enemyAircraft.getScoreValue(config);
                         props.addAll(enemyAircraft.dropProps(config, random));
@@ -268,6 +284,7 @@ public class GameEngine {
             if (heroAircraft.crash(prop)) {
                 prop.apply(this);
                 prop.vanish();
+                pendingSoundEffects.add(SoundEffect.GET_SUPPLY);
             }
         }
     }

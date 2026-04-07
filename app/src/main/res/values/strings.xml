@@ -1,3 +1,21 @@
 <resources>
     <string name="app_name">Aircraft War</string>
+    <string name="menu_title">Aircraft War</string>
+    <string name="menu_subtitle">Android migration build with touch control, local ranking, and sound.</string>
+    <string name="last_mode_template">Last mode: %1$s</string>
+    <string name="sound_switch_label">Sound Enabled</string>
+    <string name="easy_mode_label">Start Easy</string>
+    <string name="normal_mode_label">Start Normal</string>
+    <string name="hard_mode_label">Start Hard</string>
+    <string name="open_leaderboard_label">Open Leaderboard</string>
+    <string name="leaderboard_title">Leaderboard</string>
+    <string name="no_scores_label">No local scores yet.</string>
+    <string name="clear_scores_label">Clear</string>
+    <string name="back_to_menu_label">Back</string>
+    <string name="player_name_hint">Player name</string>
+    <string name="game_over_title">Game Over</string>
+    <string name="game_over_message">Score: %1$d\nDuration: %2$ds\nSave this run?</string>
+    <string name="save_score">Save</string>
+    <string name="skip_save">Skip</string>
+    <string name="default_player_name">Player</string>
 </resources>

@@ -12,6 +12,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AircraftWar">
         <activity
+            android:name=".LeaderboardActivity"
+            android:exported="false" />
+        <activity
+            android:name=".GameActivity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
