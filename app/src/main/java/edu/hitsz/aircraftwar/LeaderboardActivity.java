@@ -1,14 +1,12 @@
 package edu.hitsz.aircraftwar;
 
 import android.os.Bundle;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import edu.hitsz.aircraftwar.data.ScoreRecord;
@@ -16,8 +14,10 @@ import edu.hitsz.aircraftwar.data.ScoreRepository;
 
 public class LeaderboardActivity extends AppCompatActivity {
 
-    private ArrayAdapter<String> adapter;
+    private ScoreRecordAdapter adapter;
     private ScoreRepository scoreRepository;
+    private TextView summaryTextView;
+    private Button clearButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,13 +27,13 @@ public class LeaderboardActivity extends AppCompatActivity {
         scoreRepository = new ScoreRepository(this);
 
         ListView scoresListView = findViewById(R.id.list_scores);
-        TextView emptyView = findViewById(R.id.text_empty_scores);
-        Button clearButton = findViewById(R.id.button_clear_scores);
+        summaryTextView = findViewById(R.id.text_summary);
+        clearButton = findViewById(R.id.button_clear_scores);
         Button backButton = findViewById(R.id.button_back_menu);
 
-        adapter = new ArrayAdapter<>(this, R.layout.item_score, new ArrayList<>());
+        adapter = new ScoreRecordAdapter(this);
         scoresListView.setAdapter(adapter);
-        scoresListView.setEmptyView(emptyView);
+        scoresListView.setEmptyView(findViewById(R.id.panel_empty_scores));
 
         clearButton.setOnClickListener(view -> {
             scoreRepository.clearScores();
@@ -46,12 +46,15 @@ public class LeaderboardActivity extends AppCompatActivity {
 
     private void reloadScores() {
         List<ScoreRecord> records = scoreRepository.loadScores();
-        List<String> lines = new ArrayList<>();
-        for (int i = 0; i < records.size(); i++) {
-            lines.add(records.get(i).toDisplayLine(i + 1));
+        if (records.isEmpty()) {
+            summaryTextView.setText(R.string.leaderboard_summary_empty);
+        } else {
+            summaryTextView.setText(getString(
+                    R.string.leaderboard_summary_template,
+                    records.size(),
+                    records.get(0).getScore()));
         }
-        adapter.clear();
-        adapter.addAll(lines);
-        adapter.notifyDataSetChanged();
+        clearButton.setEnabled(!records.isEmpty());
+        adapter.replaceData(records);
     }
 }

@@ -65,6 +65,13 @@ public class SoundManager {
         startBgm(R.raw.bgm);
     }
 
+    public void playBossBgm() {
+        if (!soundEnabled) {
+            return;
+        }
+        startBgm(R.raw.bgm_boss);
+    }
+
     public void pauseBgm() {
         if (bgmPlayer != null && bgmPlayer.isPlaying()) {
             bgmPlayer.pause();

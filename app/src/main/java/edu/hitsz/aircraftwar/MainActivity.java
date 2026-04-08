@@ -50,7 +50,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         Difficulty lastDifficulty = AppPreferences.getLastDifficulty(this);
-        lastModeTextView.setText(getString(R.string.last_mode_template, lastDifficulty.name()));
+        lastModeTextView.setText(getString(
+                R.string.last_mode_template,
+                UiText.getDifficultyLabel(this, lastDifficulty)));
         boolean soundEnabled = AppPreferences.isSoundEnabled(this);
         soundSwitch.setChecked(soundEnabled);
         SoundManager.getInstance(this).setSoundEnabled(soundEnabled);

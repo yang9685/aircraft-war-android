@@ -5,8 +5,9 @@ import android.os.Bundle;
 import android.widget.EditText;
 
 import androidx.activity.OnBackPressedCallback;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import edu.hitsz.aircraftwar.audio.SoundManager;
 import edu.hitsz.aircraftwar.data.AppPreferences;
@@ -46,9 +47,6 @@ public class GameActivity extends AppCompatActivity implements GameSurfaceView.G
         if (gameSurfaceView != null) {
             gameSurfaceView.onHostResume();
         }
-        if (!gameOverHandled) {
-            soundManager.playGameBgm();
-        }
     }
 
     @Override
@@ -78,9 +76,12 @@ public class GameActivity extends AppCompatActivity implements GameSurfaceView.G
         input.setHint(R.string.player_name_hint);
         input.setSingleLine(true);
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.game_over_title)
-                .setMessage(getString(R.string.game_over_message, score, durationSeconds))
+                .setMessage(getString(
+                        R.string.game_over_message,
+                        score,
+                        UiText.formatDuration(durationSeconds)))
                 .setView(input)
                 .setCancelable(false)
                 .setPositiveButton(R.string.save_score, (dialog, which) -> {

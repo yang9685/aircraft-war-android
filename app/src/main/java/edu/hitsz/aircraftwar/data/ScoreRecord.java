@@ -1,9 +1,5 @@
 package edu.hitsz.aircraftwar.data;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -69,20 +65,10 @@ public class ScoreRecord {
             difficulty = Difficulty.NORMAL;
         }
         return new ScoreRecord(
-                object.optString(KEY_PLAYER_NAME, "Player"),
+                object.optString(KEY_PLAYER_NAME, "飞行员"),
                 object.optInt(KEY_SCORE, 0),
                 object.optLong(KEY_DURATION_SECONDS, 0L),
                 difficulty,
                 object.optLong(KEY_CREATED_AT, System.currentTimeMillis()));
-    }
-
-    public String toDisplayLine(int rank) {
-        String timeText = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-                .format(new Date(createdAt));
-        return rank + ". " + playerName
-                + "  Score: " + score
-                + "  Time: " + durationSeconds + "s"
-                + "  Mode: " + difficulty.name()
-                + "  At: " + timeText;
     }
 }

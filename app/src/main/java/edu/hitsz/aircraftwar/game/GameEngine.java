@@ -160,6 +160,19 @@ public class GameEngine {
         return drained;
     }
 
+    public boolean isBossBattleActive() {
+        return getAliveBoss() != null;
+    }
+
+    public BossEnemy getAliveBoss() {
+        for (AbstractAircraft enemyAircraft : enemyAircrafts) {
+            if (enemyAircraft instanceof BossEnemy && enemyAircraft.isValid()) {
+                return (BossEnemy) enemyAircraft;
+            }
+        }
+        return null;
+    }
+
     public SpriteType getBackgroundSpriteType() {
         switch (config.getDifficulty()) {
             case EASY:
@@ -189,7 +202,7 @@ public class GameEngine {
     }
 
     private void spawnBossIfNeeded() {
-        if (hasAliveBoss()) {
+        if (isBossBattleActive()) {
             return;
         }
         if (score < bossPhase * config.getBossScoreStep()) {
@@ -297,16 +310,6 @@ public class GameEngine {
         enemyAircrafts.removeIf(AbstractAircraft::notValid);
         props.removeIf(AbstractProp::notValid);
     }
-
-    private boolean hasAliveBoss() {
-        for (AbstractAircraft enemyAircraft : enemyAircrafts) {
-            if (enemyAircraft instanceof BossEnemy && enemyAircraft.isValid()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private float randomSpawnX(int objectWidth) {
         float minX = objectWidth * 0.5f;
         float maxX = config.getScreenWidth() - objectWidth * 0.5f;
