@@ -2,6 +2,10 @@ package edu.hitsz.aircraftwar.game;
 
 public class GameConfig {
 
+    // Normalized joystick dead zone in [0, 1).
+    // Increase this value if you want the plane to ignore more small thumb movements.
+    private static final float JOYSTICK_DEAD_ZONE_RATIO = 0.18f;
+
     private final Difficulty difficulty;
     private final int screenWidth;
     private final int screenHeight;
@@ -132,6 +136,10 @@ public class GameConfig {
 
     public float getHeroMoveSpeed() {
         return Math.max(8.0f * scale, screenWidth * 0.014f);
+    }
+
+    public float getJoystickDeadZoneRatio() {
+        return JOYSTICK_DEAD_ZONE_RATIO;
     }
 
     public float getEnemyBulletSpeedY() {

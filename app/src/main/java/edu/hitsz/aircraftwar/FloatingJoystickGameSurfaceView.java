@@ -33,8 +33,6 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
     private static final long FRAME_DELAY_MS = 16L;
     private static final long BOMB_FLASH_DURATION_MS = 220L;
     private static final long GAME_OVER_FLASH_DURATION_MS = 520L;
-    private static final float JOYSTICK_DEAD_ZONE = 0.08f;
-
     private final SurfaceHolder surfaceHolder;
     private final Object gameStateLock = new Object();
     private final Paint hudPanelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -559,20 +557,22 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
         float normalizedX = clampAxis(dx / maxOffset);
         float normalizedY = clampAxis(dy / maxOffset);
         float magnitude = Math.min(1f, (float) Math.hypot(normalizedX, normalizedY));
-        if (magnitude < JOYSTICK_DEAD_ZONE) {
+        joystickHandleX = joystickCenterX + dx;
+        joystickHandleY = joystickCenterY + dy;
+
+        float deadZone = gameConfig == null ? 0.18f : gameConfig.getJoystickDeadZoneRatio();
+        deadZone = Math.max(0f, Math.min(0.45f, deadZone));
+        if (magnitude <= deadZone) {
             joystickInputX = 0f;
             joystickInputY = 0f;
-            joystickHandleX = joystickCenterX;
-            joystickHandleY = joystickCenterY;
             return;
         }
 
-        float softenedMagnitude = (float) Math.pow(magnitude, 1.6d);
+        float activeMagnitude = (magnitude - deadZone) / (1f - deadZone);
+        float softenedMagnitude = (float) Math.pow(activeMagnitude, 1.45d);
         float directionScale = softenedMagnitude / magnitude;
         joystickInputX = normalizedX * directionScale;
         joystickInputY = normalizedY * directionScale;
-        joystickHandleX = joystickCenterX + dx;
-        joystickHandleY = joystickCenterY + dy;
     }
 
     private void applyJoystickMovement(long deltaMs) {
