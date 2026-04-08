@@ -1,13 +1,19 @@
 package edu.hitsz.aircraftwar;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
-import android.widget.EditText;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.TextView;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.textfield.TextInputEditText;
 
 import edu.hitsz.aircraftwar.audio.SoundManager;
 import edu.hitsz.aircraftwar.data.AppPreferences;
@@ -72,28 +78,38 @@ public class GameActivity extends AppCompatActivity implements GameSurfaceView.G
         gameOverHandled = true;
         soundManager.stopBgm();
 
-        EditText input = new EditText(this);
-        input.setHint(R.string.player_name_hint);
-        input.setSingleLine(true);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_game_over, null, false);
+        TextView finalScoreTextView = dialogView.findViewById(R.id.text_final_score);
+        TextView finalDurationTextView = dialogView.findViewById(R.id.text_final_duration);
+        TextInputEditText input = dialogView.findViewById(R.id.edit_player_name);
 
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.game_over_title)
-                .setMessage(getString(
-                        R.string.game_over_message,
-                        score,
-                        UiText.formatDuration(durationSeconds)))
-                .setView(input)
+        finalScoreTextView.setText(score + " 分");
+        finalDurationTextView.setText(UiText.formatDuration(durationSeconds));
+
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+                .setView(dialogView)
                 .setCancelable(false)
-                .setPositiveButton(R.string.save_score, (dialog, which) -> {
-                    String playerName = input.getText().toString().trim();
-                    if (playerName.isEmpty()) {
-                        playerName = getString(R.string.default_player_name);
-                    }
-                    new ScoreRepository(this).saveScore(playerName, score, durationSeconds, difficulty);
-                    openLeaderboard();
-                })
-                .setNegativeButton(R.string.skip_save, (dialog, which) -> openLeaderboard())
-                .show();
+                .create();
+        dialog.show();
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+
+        dialogView.findViewById(R.id.button_skip_save).setOnClickListener(view -> {
+            dialog.dismiss();
+            openLeaderboard();
+        });
+        dialogView.findViewById(R.id.button_save_score).setOnClickListener(view -> {
+            CharSequence inputText = input.getText();
+            String playerName = inputText == null ? "" : inputText.toString().trim();
+            if (playerName.isEmpty()) {
+                playerName = "飞行员";
+            }
+            new ScoreRepository(this).saveScore(playerName, score, durationSeconds, difficulty);
+            dialog.dismiss();
+            openLeaderboard();
+        });
     }
 
     private void openLeaderboard() {

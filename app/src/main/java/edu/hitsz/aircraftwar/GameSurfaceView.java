@@ -23,7 +23,6 @@ import edu.hitsz.aircraftwar.game.GameConfig;
 import edu.hitsz.aircraftwar.game.GameEngine;
 import edu.hitsz.aircraftwar.game.SpriteStore;
 import edu.hitsz.aircraftwar.game.model.AbstractFlyingObject;
-import edu.hitsz.aircraftwar.game.model.BossEnemy;
 
 public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
 
@@ -45,11 +44,6 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private final Paint barTrackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint barFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint barTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint chipPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint chipTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint bossLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint bossTrackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint bossFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint overlayPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint overlayTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint overlaySubTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -67,7 +61,6 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private final int healthGoodColor;
     private final int healthMidColor;
     private final int healthLowColor;
-    private final int warningColor;
     private final int surfaceColor;
     private final int strokeColor;
 
@@ -108,7 +101,6 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         this.healthGoodColor = ContextCompat.getColor(context, R.color.health_good);
         this.healthMidColor = ContextCompat.getColor(context, R.color.health_mid);
         this.healthLowColor = ContextCompat.getColor(context, R.color.health_low);
-        this.warningColor = ContextCompat.getColor(context, R.color.warning);
         this.surfaceColor = ContextCompat.getColor(context, R.color.surface);
         this.strokeColor = ContextCompat.getColor(context, R.color.stroke);
         surfaceHolder = getHolder();
@@ -136,19 +128,6 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         barTextPaint.setTextAlign(Paint.Align.CENTER);
         barTextPaint.setTextSize(sp(11f));
         barTextPaint.setFakeBoldText(true);
-
-        chipPaint.setColor(ContextCompat.getColor(context, R.color.surface_chip));
-        chipTextPaint.setColor(textPrimaryColor);
-        chipTextPaint.setTextAlign(Paint.Align.CENTER);
-        chipTextPaint.setTextSize(sp(12f));
-        chipTextPaint.setFakeBoldText(true);
-
-        bossLabelPaint.setColor(warningColor);
-        bossLabelPaint.setTextAlign(Paint.Align.CENTER);
-        bossLabelPaint.setTextSize(sp(13f));
-        bossLabelPaint.setFakeBoldText(true);
-        bossTrackPaint.setColor(0x66354A5D);
-        bossFillPaint.setColor(ContextCompat.getColor(context, R.color.danger));
 
         overlayPaint.setColor(0x99101821);
         overlayTextPaint.setColor(textPrimaryColor);
@@ -372,7 +351,7 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
 
     private void drawHud(Canvas canvas) {
         float margin = dp(16f);
-        float panelHeight = dp(94f);
+        float panelHeight = dp(88f);
         float infoPanelWidth = Math.min(screenWidth * 0.4f, dp(190f));
         float hpPanelWidth = Math.min(screenWidth * 0.44f, dp(214f));
         float radius = dp(20f);
@@ -380,10 +359,10 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         primaryRect.set(margin, margin, margin + infoPanelWidth, margin + panelHeight);
         drawPanel(canvas, primaryRect, radius);
         float infoTextX = primaryRect.left + dp(14f);
-        canvas.drawText(getResources().getString(R.string.hud_score_label), infoTextX, primaryRect.top + dp(24f), hudLabelPaint);
+        canvas.drawText("得分", infoTextX, primaryRect.top + dp(24f), hudLabelPaint);
         canvas.drawText(String.valueOf(gameEngine.getScore()), infoTextX, primaryRect.top + dp(54f), hudValuePaint);
         canvas.drawText(
-                getResources().getString(R.string.hud_time_label) + " " + UiText.formatDuration(gameEngine.getElapsedMs() / 1000L),
+                "时间 " + UiText.formatDuration(gameEngine.getElapsedMs() / 1000L),
                 infoTextX,
                 primaryRect.top + dp(80f),
                 hudMetaPaint);
@@ -391,64 +370,19 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         primaryRect.set(screenWidth - margin - hpPanelWidth, margin, screenWidth - margin, margin + panelHeight);
         drawPanel(canvas, primaryRect, radius);
         float hpLabelX = primaryRect.left + dp(14f);
-        canvas.drawText(getResources().getString(R.string.hud_hp_label), hpLabelX, primaryRect.top + dp(24f), hudLabelPaint);
-
-        String difficultyText = UiText.getDifficultyLabel(getContext(), difficulty);
-        float chipWidth = chipTextPaint.measureText(difficultyText) + dp(24f);
-        secondaryRect.set(
-                primaryRect.right - dp(14f) - chipWidth,
-                primaryRect.top + dp(10f),
-                primaryRect.right - dp(14f),
-                primaryRect.top + dp(36f));
-        canvas.drawRoundRect(secondaryRect, dp(13f), dp(13f), chipPaint);
-        canvas.drawText(difficultyText, secondaryRect.centerX(), centeredTextY(secondaryRect, chipTextPaint), chipTextPaint);
+        canvas.drawText("生命", hpLabelX, primaryRect.top + dp(24f), hudLabelPaint);
 
         secondaryRect.set(
                 hpLabelX,
-                primaryRect.top + dp(46f),
+                primaryRect.top + dp(42f),
                 primaryRect.right - dp(14f),
-                primaryRect.top + dp(68f));
+                primaryRect.top + dp(70f));
         drawProgressBar(
                 canvas,
                 secondaryRect,
                 gameEngine.getHeroAircraft().getHp(),
                 gameEngine.getHeroAircraft().getMaxHp(),
-                getResources().getString(
-                        R.string.hud_hp_template,
-                        gameEngine.getHeroAircraft().getHp(),
-                        gameEngine.getHeroAircraft().getMaxHp()));
-
-        canvas.drawText(
-                getResources().getString(R.string.hud_mode_template, difficultyText),
-                hpLabelX,
-                primaryRect.top + dp(84f),
-                hudMetaPaint);
-
-        BossEnemy aliveBoss = gameEngine.getAliveBoss();
-        if (aliveBoss != null) {
-            drawBossBar(canvas, aliveBoss);
-        }
-    }
-
-    private void drawBossBar(Canvas canvas, BossEnemy aliveBoss) {
-        float top = dp(126f);
-        float width = Math.min(screenWidth - dp(64f), dp(300f));
-        float left = (screenWidth - width) * 0.5f;
-
-        canvas.drawText(getResources().getString(R.string.hud_boss_label), screenWidth * 0.5f, top, bossLabelPaint);
-
-        secondaryRect.set(left, top + dp(12f), left + width, top + dp(28f));
-        canvas.drawRoundRect(secondaryRect, dp(10f), dp(10f), bossTrackPaint);
-
-        float ratio = aliveBoss.getMaxHp() == 0 ? 0f : aliveBoss.getHp() / (float) aliveBoss.getMaxHp();
-        if (ratio > 0f) {
-            primaryRect.set(
-                    secondaryRect.left,
-                    secondaryRect.top,
-                    secondaryRect.left + secondaryRect.width() * ratio,
-                    secondaryRect.bottom);
-            canvas.drawRoundRect(primaryRect, dp(10f), dp(10f), bossFillPaint);
-        }
+                gameEngine.getHeroAircraft().getHp() + " / " + gameEngine.getHeroAircraft().getMaxHp());
     }
 
     private void drawProgressBar(Canvas canvas, RectF rect, int currentValue, int maxValue, String text) {
@@ -472,17 +406,16 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     }
 
     private void drawGameOverText(Canvas canvas) {
-        float titleY = screenHeight * 0.48f;
-        canvas.drawText(
-                getResources().getString(R.string.game_over_overlay_title),
-                screenWidth * 0.5f,
-                titleY,
-                overlayTextPaint);
-        canvas.drawText(
-                getResources().getString(R.string.game_over_overlay_subtitle),
-                screenWidth * 0.5f,
-                titleY + dp(34f),
-                overlaySubTextPaint);
+        float panelWidth = Math.min(screenWidth - dp(56f), dp(260f));
+        float panelHeight = dp(108f);
+        float left = (screenWidth - panelWidth) * 0.5f;
+        float top = screenHeight * 0.5f - panelHeight * 0.5f;
+        primaryRect.set(left, top, left + panelWidth, top + panelHeight);
+        drawPanel(canvas, primaryRect, dp(28f));
+
+        float titleY = top + dp(44f);
+        canvas.drawText("作战结束", screenWidth * 0.5f, titleY, overlayTextPaint);
+        canvas.drawText("战报生成中", screenWidth * 0.5f, titleY + dp(30f), overlaySubTextPaint);
     }
 
     private void drawFlashOverlay(Canvas canvas, long now) {

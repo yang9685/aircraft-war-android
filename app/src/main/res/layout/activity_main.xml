@@ -43,11 +43,13 @@
                 android:text="@string/menu_last_mode_label"
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
                 android:layout_marginTop="18dp"
                 android:text="@string/menu_title"
                 android:textColor="@color/text_primary"
@@ -60,7 +62,8 @@
                 android:layout_marginTop="8dp"
                 android:text="@string/menu_subtitle"
                 android:textColor="@color/text_secondary"
-                android:textSize="16sp" />
+                android:textSize="16sp"
+                android:visibility="gone" />
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
@@ -83,7 +86,8 @@
                         android:text="@string/menu_mode_title"
                         android:textColor="@color/text_primary"
                         android:textSize="24sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:visibility="gone" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -91,7 +95,8 @@
                         android:layout_marginTop="6dp"
                         android:text="@string/menu_mode_subtitle"
                         android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
+                        android:textSize="14sp"
+                        android:visibility="gone" />
 
                     <TextView
                         android:id="@+id/text_last_mode"
@@ -106,6 +111,7 @@
                         android:textColor="@color/text_primary"
                         android:textSize="13sp"
                         android:textStyle="bold"
+                        android:visibility="gone"
                         tools:text="最近一次模式：普通" />
 
                     <com.google.android.material.button.MaterialButton
@@ -115,7 +121,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="18dp"
                         android:minHeight="58dp"
-                        android:text="@string/easy_mode_label"
+                        android:text="简单"
                         android:textAllCaps="false"
                         android:textColor="@color/on_primary"
                         android:textSize="18sp"
@@ -129,7 +135,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:minHeight="58dp"
-                        android:text="@string/normal_mode_label"
+                        android:text="普通"
                         android:textAllCaps="false"
                         android:textColor="@color/on_primary"
                         android:textSize="18sp"
@@ -143,7 +149,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:minHeight="58dp"
-                        android:text="@string/hard_mode_label"
+                        android:text="困难"
                         android:textAllCaps="false"
                         android:textColor="@color/text_primary"
                         android:textSize="18sp"
@@ -173,7 +179,8 @@
                         android:text="@string/menu_settings_title"
                         android:textColor="@color/text_primary"
                         android:textSize="22sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:visibility="gone" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -181,7 +188,8 @@
                         android:layout_marginTop="6dp"
                         android:text="@string/menu_settings_subtitle"
                         android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
+                        android:textSize="14sp"
+                        android:visibility="gone" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -199,7 +207,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="@string/sound_switch_label"
+                                android:text="音效"
                                 android:textColor="@color/text_primary"
                                 android:textSize="17sp"
                                 android:textStyle="bold" />
@@ -210,14 +218,15 @@
                                 android:layout_marginTop="4dp"
                                 android:text="@string/sound_switch_hint"
                                 android:textColor="@color/text_muted"
-                                android:textSize="13sp" />
+                                android:textSize="13sp"
+                                android:visibility="gone" />
                         </LinearLayout>
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/switch_sound"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:contentDescription="@string/sound_switch_label" />
+                            android:contentDescription="音效" />
                     </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
@@ -227,7 +236,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="18dp"
                         android:minHeight="56dp"
-                        android:text="@string/open_leaderboard_label"
+                        android:text="排行榜"
                         android:textAllCaps="false"
                         android:textColor="@color/text_primary"
                         android:textSize="17sp"
