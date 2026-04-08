@@ -20,11 +20,11 @@ import edu.hitsz.aircraftwar.data.AppPreferences;
 import edu.hitsz.aircraftwar.data.ScoreRepository;
 import edu.hitsz.aircraftwar.game.Difficulty;
 
-public class GameActivity extends AppCompatActivity implements GameSurfaceView.GameSessionListener {
+public class GameActivity extends AppCompatActivity implements FloatingJoystickGameSurfaceView.GameSessionListener {
 
     public static final String EXTRA_DIFFICULTY = "difficulty";
 
-    private GameSurfaceView gameSurfaceView;
+    private FloatingJoystickGameSurfaceView gameSurfaceView;
     private SoundManager soundManager;
     private Difficulty difficulty;
     private boolean gameOverHandled;
@@ -36,7 +36,7 @@ public class GameActivity extends AppCompatActivity implements GameSurfaceView.G
         soundManager = SoundManager.getInstance(this);
         soundManager.setSoundEnabled(AppPreferences.isSoundEnabled(this));
 
-        gameSurfaceView = new GameSurfaceView(this, difficulty, this, soundManager);
+        gameSurfaceView = new FloatingJoystickGameSurfaceView(this, difficulty, this, soundManager);
         setContentView(gameSurfaceView);
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -78,12 +78,15 @@ public class GameActivity extends AppCompatActivity implements GameSurfaceView.G
         gameOverHandled = true;
         soundManager.stopBgm();
 
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_game_over, null, false);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_game_over_clean, null, false);
         TextView finalScoreTextView = dialogView.findViewById(R.id.text_final_score);
         TextView finalDurationTextView = dialogView.findViewById(R.id.text_final_duration);
         TextInputEditText input = dialogView.findViewById(R.id.edit_player_name);
+        /*
 
         finalScoreTextView.setText(score + " 分");
+        */
+        finalScoreTextView.setText(score + " \u5206");
         finalDurationTextView.setText(UiText.formatDuration(durationSeconds));
 
         AlertDialog dialog = new MaterialAlertDialogBuilder(this)
@@ -103,8 +106,13 @@ public class GameActivity extends AppCompatActivity implements GameSurfaceView.G
         dialogView.findViewById(R.id.button_save_score).setOnClickListener(view -> {
             CharSequence inputText = input.getText();
             String playerName = inputText == null ? "" : inputText.toString().trim();
+            /*
             if (playerName.isEmpty()) {
                 playerName = "飞行员";
+            }
+            */
+            if (playerName.isEmpty()) {
+                playerName = "\u98de\u884c\u5458";
             }
             new ScoreRepository(this).saveScore(playerName, score, durationSeconds, difficulty);
             dialog.dismiss();
