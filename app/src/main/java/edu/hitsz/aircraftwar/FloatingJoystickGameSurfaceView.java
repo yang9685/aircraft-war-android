@@ -468,6 +468,9 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
     }
 
     private void handleHeroDragStart(MotionEvent event) {
+        if (gameEngine == null || gameEngine.isGameOver()) {
+            return;
+        }
         int actionIndex = event.getActionIndex();
         float touchX = event.getX(actionIndex);
         float touchY = event.getY(actionIndex);
@@ -488,7 +491,7 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
     }
 
     private void updateHeroDragFromEvent(MotionEvent event) {
-        if (gameEngine == null || gameEngine.isGameOver()) {
+        if (gameEngine == null) {
             resetHeroDrag();
             return;
         }
@@ -517,6 +520,9 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
     }
 
     private boolean isTouchOnHero(float touchX, float touchY) {
+        if (gameEngine == null) {
+            return false;
+        }
         HeroAircraft heroAircraft = gameEngine.getHeroAircraft();
         if (heroAircraft == null || heroAircraft.notValid()) {
             return false;
