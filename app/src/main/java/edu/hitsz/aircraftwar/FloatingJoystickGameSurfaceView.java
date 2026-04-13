@@ -512,7 +512,7 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
     private boolean isTouchOnHero(float touchX, float touchY) {
         HeroAircraft heroAircraft = gameEngine.getHeroAircraft();
         if (heroAircraft == null || heroAircraft.notValid()) {
-            return;
+            return false;
         }
         float halfWidth = heroAircraft.getWidth() * 0.5f;
         float halfHeight = heroAircraft.getHeight() * 0.5f;
