@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "AircraftWarAndroid"
 include(":app")
+include(":match-server")

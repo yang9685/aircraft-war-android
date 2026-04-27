@@ -10,6 +10,9 @@ public final class AppPreferences {
     private static final String PREFS_NAME = "aircraft_war_prefs";
     private static final String KEY_SOUND_ENABLED = "sound_enabled";
     private static final String KEY_LAST_DIFFICULTY = "last_difficulty";
+    private static final String KEY_MATCH_HOST = "match_host";
+    private static final String KEY_MATCH_PORT = "match_port";
+    private static final String KEY_PLAYER_NAME = "player_name";
 
     private AppPreferences() {
     }
@@ -33,6 +36,30 @@ public final class AppPreferences {
 
     public static void setLastDifficulty(Context context, Difficulty difficulty) {
         getPrefs(context).edit().putString(KEY_LAST_DIFFICULTY, difficulty.name()).apply();
+    }
+
+    public static String getMatchHost(Context context) {
+        return getPrefs(context).getString(KEY_MATCH_HOST, "10.0.2.2");
+    }
+
+    public static void setMatchHost(Context context, String host) {
+        getPrefs(context).edit().putString(KEY_MATCH_HOST, host).apply();
+    }
+
+    public static int getMatchPort(Context context) {
+        return getPrefs(context).getInt(KEY_MATCH_PORT, 9999);
+    }
+
+    public static void setMatchPort(Context context, int port) {
+        getPrefs(context).edit().putInt(KEY_MATCH_PORT, port).apply();
+    }
+
+    public static String getPlayerName(Context context) {
+        return getPrefs(context).getString(KEY_PLAYER_NAME, "");
+    }
+
+    public static void setPlayerName(Context context, String playerName) {
+        getPrefs(context).edit().putString(KEY_PLAYER_NAME, playerName).apply();
     }
 
     private static SharedPreferences getPrefs(Context context) {

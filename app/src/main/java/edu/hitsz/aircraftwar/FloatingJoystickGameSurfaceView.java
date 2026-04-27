@@ -27,6 +27,8 @@ import edu.hitsz.aircraftwar.game.model.AbstractFlyingObject;
 public class FloatingJoystickGameSurfaceView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
 
     public interface GameSessionListener {
+        void onScoreChanged(int score);
+
         void onGameOver(int score, long durationSeconds, Difficulty difficulty);
     }
 
@@ -90,8 +92,13 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
     private boolean bgmSynced;
     private boolean bossMusicActive;
     private boolean joystickActive;
+    private boolean multiplayerMode;
+    private boolean opponentDead;
     private int joystickPointerId = MotionEvent.INVALID_POINTER_ID;
+    private int opponentScore;
+    private int lastReportedScore = Integer.MIN_VALUE;
     private long gameOverNotifyAtMs;
+    private String opponentName = "";
 
     private SpriteStore spriteStore;
     private GameConfig gameConfig;
@@ -183,6 +190,7 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
             gameOverNotified = false;
             bgmSynced = false;
             bossMusicActive = false;
+            lastReportedScore = Integer.MIN_VALUE;
             initJoystick();
         }
         startLoop();
@@ -254,6 +262,14 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
                         gameOverScore = gameEngine.getScore();
                         gameOverDurationSeconds = gameEngine.getElapsedMs() / 1000L;
                     }
+                    if (gameSessionListener != null) {
+                        int currentScore = gameEngine.getScore();
+                        if (currentScore != lastReportedScore) {
+                            lastReportedScore = currentScore;
+                            final int updatedScore = currentScore;
+                            post(() -> gameSessionListener.onScoreChanged(updatedScore));
+                        }
+                    }
                 }
             }
 
@@ -283,6 +299,15 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
     public void onHostResume() {
         if (surfaceHolder.getSurface().isValid() && gameEngine != null) {
             startLoop();
+        }
+    }
+
+    public void setOpponentState(String name, int score, boolean defeated) {
+        synchronized (gameStateLock) {
+            multiplayerMode = true;
+            opponentName = name == null ? "" : name;
+            opponentScore = Math.max(0, score);
+            opponentDead = defeated;
         }
     }
 
@@ -403,6 +428,26 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
                 infoTextX,
                 primaryRect.top + dp(80f),
                 hudMetaPaint);
+
+        if (multiplayerMode) {
+            secondaryRect.set(
+                    margin,
+                    primaryRect.bottom + dp(10f),
+                    margin + infoPanelWidth,
+                    primaryRect.bottom + dp(10f) + dp(70f));
+            drawPanel(canvas, secondaryRect, radius);
+            float opponentTextX = secondaryRect.left + dp(14f);
+            String displayName = opponentName == null || opponentName.isEmpty()
+                    ? "\u5bf9\u624b"
+                    : opponentName;
+            canvas.drawText(displayName, opponentTextX, secondaryRect.top + dp(22f), hudLabelPaint);
+            canvas.drawText(String.valueOf(opponentScore), opponentTextX, secondaryRect.top + dp(47f), hudValuePaint);
+            canvas.drawText(
+                    opponentDead ? "\u5df2\u88ab\u51fb\u843d" : "\u5b9e\u65f6\u540c\u6b65\u4e2d",
+                    opponentTextX,
+                    secondaryRect.top + dp(64f),
+                    hudMetaPaint);
+        }
 
         primaryRect.set(screenWidth - margin - hpPanelWidth, margin, screenWidth - margin, margin + panelHeight);
         drawPanel(canvas, primaryRect, radius);

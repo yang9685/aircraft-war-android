@@ -158,6 +158,20 @@
                         android:textSize="18sp"
                         app:backgroundTint="@color/hard_accent"
                         app:cornerRadius="22dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/button_multiplayer"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:minHeight="56dp"
+                        android:text="&#x8054;&#x673A;&#x5BF9;&#x6218;"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_primary"
+                        android:textSize="18sp"
+                        app:cornerRadius="22dp"
+                        app:strokeColor="@color/stroke" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

@@ -28,6 +28,7 @@ public class MainActivity extends AppCompatActivity {
         Button easyButton = findViewById(R.id.button_easy);
         Button normalButton = findViewById(R.id.button_normal);
         Button hardButton = findViewById(R.id.button_hard);
+        Button multiplayerButton = findViewById(R.id.button_multiplayer);
         Button leaderboardButton = findViewById(R.id.button_leaderboard);
 
         boolean soundEnabled = AppPreferences.isSoundEnabled(this);
@@ -41,6 +42,8 @@ public class MainActivity extends AppCompatActivity {
         easyButton.setOnClickListener(view -> launchGame(Difficulty.EASY));
         normalButton.setOnClickListener(view -> launchGame(Difficulty.NORMAL));
         hardButton.setOnClickListener(view -> launchGame(Difficulty.HARD));
+        multiplayerButton.setOnClickListener(view ->
+                startActivity(new Intent(this, MultiplayerLobbyActivity.class)));
         leaderboardButton.setOnClickListener(view -> {
             Difficulty lastDifficulty = AppPreferences.getLastDifficulty(this);
             Intent intent = new Intent(this, LeaderboardActivity.class);
