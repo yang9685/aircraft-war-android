@@ -53,6 +53,51 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp" />
 
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/group_difficulty"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    app:singleSelection="true"
+                    app:selectionRequired="true">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/button_filter_easy"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:minHeight="44dp"
+                        android:text="@string/difficulty_easy"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_primary"
+                        app:cornerRadius="16dp"
+                        app:strokeColor="@color/stroke" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/button_filter_normal"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:minHeight="44dp"
+                        android:text="@string/difficulty_normal"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_primary"
+                        app:cornerRadius="16dp"
+                        app:strokeColor="@color/stroke" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/button_filter_hard"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:minHeight="44dp"
+                        android:text="@string/difficulty_hard"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_primary"
+                        app:cornerRadius="16dp"
+                        app:strokeColor="@color/stroke" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
                 <TextView
                     android:id="@+id/text_summary"
                     android:layout_width="wrap_content"
@@ -66,7 +111,7 @@
                     android:textColor="@color/text_primary"
                     android:textSize="13sp"
                     android:textStyle="bold"
-                    tools:text="共 5 条记录，当前最高分 2800" />
+                    tools:text="普通模式共 5 条记录，最高分 2800 分" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

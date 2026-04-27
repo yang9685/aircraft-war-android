@@ -42,7 +42,10 @@ public class MainActivity extends AppCompatActivity {
         normalButton.setOnClickListener(view -> launchGame(Difficulty.NORMAL));
         hardButton.setOnClickListener(view -> launchGame(Difficulty.HARD));
         leaderboardButton.setOnClickListener(view -> {
-            startActivity(new Intent(this, LeaderboardActivity.class));
+            Difficulty lastDifficulty = AppPreferences.getLastDifficulty(this);
+            Intent intent = new Intent(this, LeaderboardActivity.class);
+            intent.putExtra(LeaderboardActivity.EXTRA_DIFFICULTY, lastDifficulty.name());
+            startActivity(intent);
         });
     }
 

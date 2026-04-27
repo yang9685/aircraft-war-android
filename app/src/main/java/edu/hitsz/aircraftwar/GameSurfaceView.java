@@ -33,8 +33,8 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private static final long FRAME_DELAY_MS = 16L;
     private static final long BOMB_FLASH_DURATION_MS = 220L;
     private static final long GAME_OVER_FLASH_DURATION_MS = 520L;
-    private static final float JOYSTICK_DEAD_ZONE = 0.08f;
 
+    private static final float JOYSTICK_DEAD_ZONE = 0.15f;
     private final SurfaceHolder surfaceHolder;
     private final Object gameStateLock = new Object();
     private final Paint hudPanelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -562,8 +562,15 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private void updateJoystick(float touchX, float touchY) {
         float dx = touchX - joystickCenterX;
         float dy = touchY - joystickCenterY;
-        float maxOffset = joystickBaseRadius - joystickKnobRadius * 0.35f;
+
+        // 让可拖动的物理区域边界更宽或者计算圈适度调整，让用户需要拖更远才能满速
+        // （这里缩小了 knobRadius 的减去量，让 maxOffset 稍微拉大）
+        float maxOffset = joystickBaseRadius - joystickKnobRadius * 0.25f;
+
+        // 计算手指拖拽方向的总距离
         float distance = (float) Math.hypot(dx, dy);
+
+        // 限制摇杆 UI 的显示圆点不出界
         if (distance > maxOffset && distance > 0f) {
             float scale = maxOffset / distance;
             dx *= scale;
@@ -572,16 +579,30 @@ public class GameSurfaceView extends SurfaceView implements SurfaceHolder.Callba
 
         joystickHandleX = joystickCenterX + dx;
         joystickHandleY = joystickCenterY + dy;
-        joystickInputX = clampAxis(dx / maxOffset);
-        joystickInputY = clampAxis(dy / maxOffset);
 
-        float magnitude = (float) Math.hypot(joystickInputX, joystickInputY);
-        if (magnitude < JOYSTICK_DEAD_ZONE) {
+        // 获取 0.0 ~ 1.0 的线性拖拽比例
+        float normalizedX = clampAxis(dx / maxOffset);
+        float normalizedY = clampAxis(dy / maxOffset);
+
+        float magnitude = Math.min(1f, (float) Math.hypot(normalizedX, normalizedY));
+
+        // 1. 判断死区：手抖或者微小触摸过滤掉
+        if (magnitude <= JOYSTICK_DEAD_ZONE) {
             joystickInputX = 0f;
             joystickInputY = 0f;
-            joystickHandleX = joystickCenterX;
-            joystickHandleY = joystickCenterY;
+            return;
         }
+
+        // 2. 连续化死区过度 + 指数级平滑映射 (核心优化点)
+        // - activeMagnitude: 去除死区后的有效比例，防止跨过死区时突然加速跳跃
+        // - softenedMagnitude: 使用 1.6 次方对操作进行软化，极大提升居中的颗粒精度微操
+        float activeMagnitude = (magnitude - JOYSTICK_DEAD_ZONE) / (1f - JOYSTICK_DEAD_ZONE);
+        float softenedMagnitude = (float) Math.pow(activeMagnitude, 1.6d); // 1.6是指数，越大轻推越不敏感
+
+        // 将降速阻尼折算回 X 和 Y 轴
+        float directionScale = softenedMagnitude / magnitude;
+        joystickInputX = normalizedX * directionScale;
+        joystickInputY = normalizedY * directionScale;
     }
 
     private void applyJoystickMovement(long deltaMs) {

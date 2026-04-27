@@ -122,6 +122,7 @@ public class GameActivity extends AppCompatActivity implements FloatingJoystickG
 
     private void openLeaderboard() {
         Intent intent = new Intent(this, LeaderboardActivity.class);
+        intent.putExtra(LeaderboardActivity.EXTRA_DIFFICULTY, difficulty.name());
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(intent);
         finish();
