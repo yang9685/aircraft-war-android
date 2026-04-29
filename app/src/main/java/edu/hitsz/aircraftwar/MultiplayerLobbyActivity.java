@@ -75,7 +75,7 @@ public class MultiplayerLobbyActivity extends AppCompatActivity implements Socke
 
     @Override
     protected void onDestroy() {
-        if (!launchingGame) {
+        if (!launchingGame && !isChangingConfigurations()) {
             disconnectClient();
         }
         super.onDestroy();
@@ -126,7 +126,7 @@ public class MultiplayerLobbyActivity extends AppCompatActivity implements Socke
 
     @Override
     public void onDisconnected(String reason) {
-        if (launchingGame) {
+        if (launchingGame || isFinishing() || isDestroyed()) {
             return;
         }
         statusTextView.setText("\u5DF2\u65AD\u5F00");

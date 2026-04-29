@@ -91,8 +91,11 @@ public class SocketMatchClient {
 
     public void disconnect() {
         manuallyClosed = true;
-        sendLine("LEAVE");
-        closeSocket();
+        Thread worker = new Thread(() -> {
+            sendLine("LEAVE");
+            closeSocket();
+        }, "socket-match-disconnect");
+        worker.start();
     }
 
     private void runConnectionLoop() {
