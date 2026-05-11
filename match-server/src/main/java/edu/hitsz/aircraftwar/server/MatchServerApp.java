@@ -8,11 +8,10 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class MatchServerApp {
 
@@ -37,7 +36,7 @@ public final class MatchServerApp {
 
     private void start() throws IOException {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Match server started on port " + port);
+            System.out.println("Aircraft War battle server listening on " + port);
             while (true) {
                 Socket socket = serverSocket.accept();
                 PlayerConnection playerConnection = new PlayerConnection(socket, coordinator);
@@ -54,123 +53,107 @@ public final class MatchServerApp {
 
     private static final class MatchCoordinator {
         private final Map<Difficulty, PlayerConnection> waitingPlayers = new EnumMap<>(Difficulty.class);
+        private final AtomicInteger roomIds = new AtomicInteger(1);
 
-        public synchronized void join(PlayerConnection player, String playerName, Difficulty difficulty) {
-            player.playerName = playerName;
+        public synchronized void join(PlayerConnection player, Difficulty difficulty) {
             player.difficulty = difficulty;
-
             PlayerConnection waiting = waitingPlayers.get(difficulty);
             if (waiting == null || !waiting.isConnected()) {
                 waitingPlayers.put(difficulty, player);
-                player.send("WAITING");
+                player.send("WAIT|Waiting for another pilot");
                 return;
             }
 
             waitingPlayers.remove(difficulty);
-            MatchRoom room = new MatchRoom(waiting, player);
-            waiting.room = room;
-            player.room = room;
-            waiting.send("MATCHED\t" + encode(playerName) + "\t" + difficulty.name());
-            player.send("MATCHED\t" + encode(waiting.playerName) + "\t" + difficulty.name());
+            BattleRoom room = new BattleRoom(roomIds.getAndIncrement(), waiting, player, difficulty);
+            waiting.bindRoom(room, 1);
+            player.bindRoom(room, 2);
+            waiting.send("START|" + room.id + "|1|" + difficulty.name());
+            player.send("START|" + room.id + "|2|" + difficulty.name());
+            System.out.println("Room " + room.id + " started");
         }
 
-        public synchronized void updateScore(PlayerConnection player, int score) {
-            if (player.room != null) {
-                player.currentScore = score;
-                player.room.forwardScore(player, score);
-            }
-        }
-
-        public synchronized void markDead(PlayerConnection player, int score, long durationSeconds) {
-            if (player.room == null) {
-                return;
-            }
-            player.currentScore = score;
-            player.currentDurationSeconds = durationSeconds;
-            player.dead = true;
-            player.room.forwardDeath(player, score, durationSeconds);
-            if (player.room.isFinished()) {
-                player.room.finish();
+        public synchronized void removeWaiting(PlayerConnection player) {
+            if (player.difficulty != null && waitingPlayers.get(player.difficulty) == player) {
+                waitingPlayers.remove(player.difficulty);
             }
         }
 
         public synchronized void handleDisconnect(PlayerConnection player) {
-            if (player.difficulty != null && waitingPlayers.get(player.difficulty) == player) {
-                waitingPlayers.remove(player.difficulty);
-            }
+            removeWaiting(player);
             if (player.room != null) {
-                MatchRoom room = player.room;
+                BattleRoom room = player.room;
                 player.room = null;
                 room.handleDisconnect(player);
             }
         }
     }
 
-    private static final class MatchRoom {
-        private final PlayerConnection first;
-        private final PlayerConnection second;
+    private static final class BattleRoom {
+        private final int id;
+        private final PlayerConnection playerOne;
+        private final PlayerConnection playerTwo;
+        private final Difficulty difficulty;
+        private Integer playerOneScore;
+        private Integer playerTwoScore;
+        private Long playerOneDuration;
+        private Long playerTwoDuration;
         private boolean finished;
 
-        private MatchRoom(PlayerConnection first, PlayerConnection second) {
-            this.first = first;
-            this.second = second;
+        private BattleRoom(int id, PlayerConnection playerOne, PlayerConnection playerTwo, Difficulty difficulty) {
+            this.id = id;
+            this.playerOne = playerOne;
+            this.playerTwo = playerTwo;
+            this.difficulty = difficulty;
         }
 
-        public void forwardScore(PlayerConnection source, int score) {
-            PlayerConnection target = other(source);
-            if (target != null) {
-                target.send("OPPONENT_SCORE\t" + score);
+        private void forwardScore(int fromPlayerId, int score, long durationSeconds) {
+            String message = "SCORE|" + fromPlayerId + "|" + score + "|" + durationSeconds;
+            if (fromPlayerId == 1) {
+                playerTwo.send(message);
+            } else {
+                playerOne.send(message);
             }
         }
 
-        public void forwardDeath(PlayerConnection source, int score, long durationSeconds) {
-            PlayerConnection target = other(source);
-            if (target != null) {
-                target.send("OPPONENT_DEAD\t" + score + "\t" + durationSeconds);
+        private synchronized void submitResult(int playerId, int score, long durationSeconds) {
+            if (finished) {
+                return;
+            }
+            if (playerId == 1) {
+                playerOneScore = score;
+                playerOneDuration = durationSeconds;
+                playerTwo.send("OPPONENT_RESULT|1|" + score + "|" + durationSeconds);
+            } else {
+                playerTwoScore = score;
+                playerTwoDuration = durationSeconds;
+                playerOne.send("OPPONENT_RESULT|2|" + score + "|" + durationSeconds);
+            }
+
+            if (playerOneScore != null && playerTwoScore != null) {
+                finished = true;
+                int winner = playerOneScore.equals(playerTwoScore) ? 0 : (playerOneScore > playerTwoScore ? 1 : 2);
+                String message = "MATCH_RESULT|" + winner
+                        + "|" + playerOneScore + "|" + playerOneDuration
+                        + "|" + playerTwoScore + "|" + playerTwoDuration;
+                playerOne.send(message);
+                playerTwo.send(message);
+                playerOne.room = null;
+                playerTwo.room = null;
+                System.out.println("Room " + id + " finished on " + difficulty.name());
             }
         }
 
-        public boolean isFinished() {
-            return first.dead && second.dead;
-        }
-
-        public void finish() {
+        private synchronized void handleDisconnect(PlayerConnection leaver) {
             if (finished) {
                 return;
             }
             finished = true;
-            first.send(buildMatchEndMessage(first, second));
-            second.send(buildMatchEndMessage(second, first));
-            first.room = null;
-            second.room = null;
-        }
-
-        public void handleDisconnect(PlayerConnection leaver) {
-            if (finished) {
-                return;
-            }
-            finished = true;
-            PlayerConnection target = other(leaver);
+            PlayerConnection target = leaver == playerOne ? playerTwo : playerOne;
             if (target != null && target.isConnected()) {
-                target.send("OPPONENT_LEFT\t" + encode("\u5BF9\u624B\u5DF2\u79BB\u5F00\u5BF9\u5C40"));
                 target.closeSilently();
                 target.room = null;
             }
-        }
-
-        private String buildMatchEndMessage(PlayerConnection local, PlayerConnection opponent) {
-            return "MATCH_END\t"
-                    + local.currentScore
-                    + "\t"
-                    + local.currentDurationSeconds
-                    + "\t"
-                    + opponent.currentScore
-                    + "\t"
-                    + opponent.currentDurationSeconds;
-        }
-
-        private PlayerConnection other(PlayerConnection source) {
-            return source == first ? second : first;
         }
     }
 
@@ -179,13 +162,10 @@ public final class MatchServerApp {
         private final MatchCoordinator coordinator;
         private BufferedReader reader;
         private PrintWriter writer;
-        private boolean connected = true;
-        private MatchRoom room;
-        private String playerName = "";
+        private volatile boolean connected = true;
+        private BattleRoom room;
+        private int playerId;
         private Difficulty difficulty;
-        private int currentScore;
-        private long currentDurationSeconds;
-        private boolean dead;
 
         private PlayerConnection(Socket socket, MatchCoordinator coordinator) {
             this.socket = socket;
@@ -198,6 +178,7 @@ public final class MatchServerApp {
                 reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
                 writer = new PrintWriter(new BufferedWriter(
                         new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8)), true);
+                send("CONNECTED|Aircraft War battle server");
                 String line;
                 while ((line = reader.readLine()) != null) {
                     handleClientMessage(line);
@@ -217,6 +198,11 @@ public final class MatchServerApp {
             return connected && !socket.isClosed();
         }
 
+        public void bindRoom(BattleRoom room, int playerId) {
+            this.room = room;
+            this.playerId = playerId;
+        }
+
         public void send(String message) {
             if (writer != null) {
                 writer.println(message);
@@ -233,27 +219,27 @@ public final class MatchServerApp {
         }
 
         private void handleClientMessage(String line) {
-            String[] parts = line.split("\t", -1);
+            String[] parts = line.split("\\|");
             if (parts.length == 0) {
                 return;
             }
             switch (parts[0]) {
                 case "JOIN":
-                    if (parts.length >= 3) {
-                        coordinator.join(this, decode(parts[1]), parseDifficulty(parts[2]));
+                    if (parts.length >= 2) {
+                        coordinator.join(this, parseDifficulty(parts[1]));
                     }
                     return;
                 case "SCORE":
-                    if (parts.length >= 2) {
-                        coordinator.updateScore(this, parseInt(parts[1]));
+                    if (parts.length >= 3 && room != null) {
+                        room.forwardScore(playerId, parseInt(parts[1]), parseLong(parts[2]));
                     }
                     return;
-                case "DEAD":
-                    if (parts.length >= 3) {
-                        coordinator.markDead(this, parseInt(parts[1]), parseLong(parts[2]));
+                case "RESULT":
+                    if (parts.length >= 3 && room != null) {
+                        room.submitResult(playerId, parseInt(parts[1]), parseLong(parts[2]));
                     }
                     return;
-                case "LEAVE":
+                case "BYE":
                     closeSilently();
                     return;
                 default:
@@ -283,13 +269,5 @@ public final class MatchServerApp {
                 return 0L;
             }
         }
-    }
-
-    private static String encode(String value) {
-        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
-    }
-
-    private static String decode(String value) {
-        return URLDecoder.decode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
 }

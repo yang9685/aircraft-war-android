@@ -82,45 +82,61 @@ public class MultiplayerLobbyActivity extends AppCompatActivity implements Socke
     }
 
     @Override
-    public void onConnecting() {
-        statusTextView.setText("\u6B63\u5728\u8FDE\u63A5\u670D\u52A1\u5668\u2026");
-        hintTextView.setText("\u6210\u529F\u540E\u5C06\u81EA\u52A8\u7B49\u5F85\u53E6\u4E00\u540D\u73A9\u5BB6\u52A0\u5165\u5BF9\u6218\u3002");
-        setFormEnabled(false);
-        connectButton.setEnabled(false);
+    public void onStatus(String message) {
+        statusTextView.setText(message);
+        if ("\u5DF2\u8FDE\u63A5\u670D\u52A1\u5668".equals(message)) {
+            hintTextView.setText("\u8FDE\u63A5\u6210\u529F\uff0c\u6B63\u5728\u51C6\u5907\u5339\u914D\u5BF9\u6240\u9009\u96BE\u5EA6\u7684\u5BF9\u624B\u3002");
+        } else if (message.contains("\u7B49\u5F85")) {
+            hintTextView.setText(
+                    String.format(
+                            Locale.getDefault(),
+                            "\u5DF2\u8FDE\u63A5\u6210\u529F\uff0c\u6B63\u5728\u7B49\u5F85 %s \u96BE\u5EA6\u7684\u5BF9\u624B\u2026",
+                            UiText.getDifficultyLabel(this, selectedDifficulty)));
+        }
     }
 
     @Override
-    public void onWaitingForOpponent(Difficulty difficulty) {
-        statusTextView.setText("\u5339\u914D\u4E2D");
-        hintTextView.setText(
-                String.format(
-                        Locale.getDefault(),
-                        "\u5DF2\u8FDE\u63A5\u6210\u529F\uFF0C\u6B63\u5728\u7B49\u5F85 %s \u96BE\u5EA6\u7684\u5BF9\u624B\u2026",
-                        UiText.getDifficultyLabel(this, difficulty)));
-    }
-
-    @Override
-    public void onMatched(String opponentName, Difficulty difficulty) {
+    public void onMatchStarted(int roomId, int playerId, Difficulty difficulty) {
         launchingGame = true;
         statusTextView.setText("\u5339\u914D\u6210\u529F");
-        hintTextView.setText((opponentName == null || opponentName.isEmpty() ? "\u5BF9\u624B" : opponentName) + " \u5DF2\u8FDB\u5165\u6218\u573A");
+        hintTextView.setText("\u5BF9\u5C40\u5373\u5C06\u5F00\u59CB\u2026");
+        matchClient.setListener(null);
         MultiplayerSessionStore.setActiveClient(matchClient);
         Intent intent = new Intent(this, GameActivity.class);
-        intent.putExtra(GameActivity.EXTRA_MULTIPLAYER, true);
+        intent.putExtra(GameActivity.EXTRA_ONLINE_BATTLE, true);
         intent.putExtra(GameActivity.EXTRA_DIFFICULTY, difficulty.name());
         intent.putExtra(GameActivity.EXTRA_PLAYER_NAME, safeTrim(playerNameInput.getText().toString()));
-        intent.putExtra(GameActivity.EXTRA_OPPONENT_NAME, opponentName);
+        intent.putExtra(GameActivity.EXTRA_PLAYER_ID, playerId);
+        intent.putExtra(GameActivity.EXTRA_ROOM_ID, roomId);
+        intent.putExtra(GameActivity.EXTRA_HOST, safeTrim(hostInput.getText().toString()));
         startActivity(intent);
-        finish();
     }
 
     @Override
-    public void onOpponentStateChanged(String opponentName, int score, boolean defeated, long durationSeconds) {
+    protected void onStop() {
+        super.onStop();
+        if (launchingGame) {
+            finish();
+        }
+    }
+
+    @Override
+    public void onOpponentScoreUpdate(int playerId, int score, long durationSeconds) {
         // No-op before entering battle.
     }
 
     @Override
-    public void onMatchFinished(int localScore, long localDurationSeconds, int opponentScore, long opponentDurationSeconds) {
+    public void onOpponentResult(int playerId, int score, long durationSeconds) {
+        // No-op before entering battle.
+    }
+
+    @Override
+    public void onMatchResult(
+            int winnerId,
+            int playerOneScore,
+            long playerOneDurationSeconds,
+            int playerTwoScore,
+            long playerTwoDurationSeconds) {
         // No-op before entering battle.
     }
 
@@ -168,8 +184,12 @@ public class MultiplayerLobbyActivity extends AppCompatActivity implements Socke
         AppPreferences.setPlayerName(this, playerName);
 
         disconnectClient();
-        matchClient = new SocketMatchClient(host, port, playerName, selectedDifficulty);
+        matchClient = new SocketMatchClient(host, port, selectedDifficulty);
         matchClient.setListener(this);
+        statusTextView.setText("\u6B63\u5728\u8FDE\u63A5\u670D\u52A1\u5668\u2026");
+        hintTextView.setText("\u6210\u529F\u540E\u5C06\u81EA\u52A8\u7B49\u5F85\u53E6\u4E00\u540D\u73A9\u5BB6\u52A0\u5165\u5BF9\u6218\u3002");
+        setFormEnabled(false);
+        connectButton.setEnabled(false);
         matchClient.connect();
     }
 

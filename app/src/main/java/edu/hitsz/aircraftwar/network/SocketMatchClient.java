@@ -5,6 +5,7 @@ import android.os.Looper;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -12,24 +13,27 @@ import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
-import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 import edu.hitsz.aircraftwar.game.Difficulty;
 
-public class SocketMatchClient {
+public class SocketMatchClient implements Closeable {
 
     public interface Listener {
-        void onConnecting();
+        void onStatus(String message);
 
-        void onWaitingForOpponent(Difficulty difficulty);
+        void onMatchStarted(int roomId, int playerId, Difficulty difficulty);
 
-        void onMatched(String opponentName, Difficulty difficulty);
+        void onOpponentScoreUpdate(int playerId, int score, long durationSeconds);
 
-        void onOpponentStateChanged(String opponentName, int score, boolean defeated, long durationSeconds);
+        void onOpponentResult(int playerId, int score, long durationSeconds);
 
-        void onMatchFinished(int localScore, long localDurationSeconds, int opponentScore, long opponentDurationSeconds);
+        void onMatchResult(
+                int winnerId,
+                int playerOneScore,
+                long playerOneDurationSeconds,
+                int playerTwoScore,
+                long playerTwoDurationSeconds);
 
         void onDisconnected(String reason);
     }
@@ -38,7 +42,6 @@ public class SocketMatchClient {
     private final Object writeLock = new Object();
     private final String host;
     private final int port;
-    private final String playerName;
     private final Difficulty difficulty;
 
     private volatile Listener listener;
@@ -47,29 +50,32 @@ public class SocketMatchClient {
     private volatile PrintWriter writer;
     private volatile boolean manuallyClosed;
     private volatile boolean connected;
-    private volatile boolean matched;
     private volatile boolean disconnectedNotified;
-    private volatile boolean opponentDead;
-    private volatile boolean matchFinished;
-    private volatile String opponentName = "";
-    private volatile int opponentScore;
-    private volatile long opponentDurationSeconds;
-    private volatile int localFinalScore;
-    private volatile long localFinalDurationSeconds;
-    private volatile int opponentFinalScore;
-    private volatile long opponentFinalDurationSeconds;
+    private volatile String statusMessage = "";
+    private volatile int roomId;
+    private volatile int playerId;
+    private volatile int lastOpponentPlayerId;
+    private volatile int lastOpponentScore;
+    private volatile long lastOpponentDurationSeconds;
+    private volatile boolean opponentScoreKnown;
+    private volatile boolean opponentResultKnown;
+    private volatile boolean matchResultKnown;
+    private volatile int winnerId;
+    private volatile int playerOneScore;
+    private volatile long playerOneDurationSeconds;
+    private volatile int playerTwoScore;
+    private volatile long playerTwoDurationSeconds;
 
-    public SocketMatchClient(String host, int port, String playerName, Difficulty difficulty) {
+    public SocketMatchClient(String host, int port, Difficulty difficulty) {
         this.host = host;
         this.port = port;
-        this.playerName = playerName;
         this.difficulty = difficulty;
     }
 
     public void connect() {
         manuallyClosed = false;
         disconnectedNotified = false;
-        dispatchListener(Listener::onConnecting);
+        postStatus("\u6B63\u5728\u8FDE\u63A5\u670D\u52A1\u5668\u2026");
         Thread worker = new Thread(this::runConnectionLoop, "socket-match-client");
         worker.start();
     }
@@ -79,20 +85,23 @@ public class SocketMatchClient {
         dispatchSnapshot(listener);
     }
 
-    public void sendScore(int score) {
-        sendLine("SCORE\t" + score);
+    public void sendScore(int score, long durationSeconds) {
+        sendLine("SCORE|" + score + "|" + durationSeconds);
     }
 
-    public void sendDeath(int score, long durationSeconds) {
-        localFinalScore = score;
-        localFinalDurationSeconds = durationSeconds;
-        sendLine("DEAD\t" + score + "\t" + durationSeconds);
+    public void sendResult(int score, long durationSeconds) {
+        sendLine("RESULT|" + score + "|" + durationSeconds);
     }
 
     public void disconnect() {
-        manuallyClosed = true;
+        close();
+    }
+
+    @Override
+    public void close() {
         Thread worker = new Thread(() -> {
-            sendLine("LEAVE");
+            sendLine("BYE", true);
+            manuallyClosed = true;
             closeSocket();
         }, "socket-match-disconnect");
         worker.start();
@@ -107,10 +116,10 @@ public class SocketMatchClient {
             writer = new PrintWriter(new BufferedWriter(
                     new OutputStreamWriter(connection.getOutputStream(), StandardCharsets.UTF_8)), true);
             connected = true;
-            sendLine("JOIN\t" + encode(playerName) + "\t" + difficulty.name());
+            sendLine("JOIN|" + difficulty.name());
 
             String line;
-            while ((line = reader.readLine()) != null) {
+            while (!manuallyClosed && (line = reader.readLine()) != null) {
                 handleServerMessage(line);
             }
             if (!manuallyClosed) {
@@ -130,60 +139,68 @@ public class SocketMatchClient {
     }
 
     private void handleServerMessage(String line) {
-        String[] parts = line.split("\t", -1);
+        String[] parts = line.split("\\|");
         if (parts.length == 0) {
             return;
         }
         switch (parts[0]) {
-            case "WAITING":
-                dispatchListener(listener -> listener.onWaitingForOpponent(difficulty));
+            case "CONNECTED":
+                postStatus("\u5DF2\u8FDE\u63A5\u670D\u52A1\u5668");
                 return;
-            case "MATCHED":
-                if (parts.length >= 3) {
-                    matched = true;
-                    opponentName = decode(parts[1]);
-                    Difficulty matchedDifficulty = parseDifficulty(parts[2]);
-                    dispatchListener(listener -> listener.onMatched(opponentName, matchedDifficulty));
+            case "WAIT":
+                postStatus("\u6B63\u5728\u7B49\u5F85\u53E6\u4E00\u540D\u73A9\u5BB6\u52A0\u5165\u2026");
+                return;
+            case "START":
+                if (parts.length >= 4) {
+                    roomId = parseInt(parts[1]);
+                    playerId = parseInt(parts[2]);
+                    Difficulty matchedDifficulty = parseDifficulty(parts[3]);
+                    dispatchListener(listener -> listener.onMatchStarted(roomId, playerId, matchedDifficulty));
                 }
                 return;
-            case "OPPONENT_SCORE":
-                if (parts.length >= 2) {
-                    opponentScore = parseInt(parts[1]);
-                    dispatchListener(listener -> listener.onOpponentStateChanged(opponentName, opponentScore, opponentDead, opponentDurationSeconds));
+            case "SCORE":
+                if (parts.length >= 4) {
+                    lastOpponentPlayerId = parseInt(parts[1]);
+                    lastOpponentScore = parseInt(parts[2]);
+                    lastOpponentDurationSeconds = parseLong(parts[3]);
+                    opponentScoreKnown = true;
+                    dispatchListener(listener -> listener.onOpponentScoreUpdate(
+                            lastOpponentPlayerId,
+                            lastOpponentScore,
+                            lastOpponentDurationSeconds));
                 }
                 return;
-            case "OPPONENT_DEAD":
-                if (parts.length >= 3) {
-                    opponentScore = parseInt(parts[1]);
-                    opponentDurationSeconds = parseLong(parts[2]);
-                    opponentDead = true;
-                    dispatchListener(listener -> listener.onOpponentStateChanged(opponentName, opponentScore, true, opponentDurationSeconds));
+            case "OPPONENT_RESULT":
+                if (parts.length >= 4) {
+                    lastOpponentPlayerId = parseInt(parts[1]);
+                    lastOpponentScore = parseInt(parts[2]);
+                    lastOpponentDurationSeconds = parseLong(parts[3]);
+                    opponentScoreKnown = true;
+                    opponentResultKnown = true;
+                    dispatchListener(listener -> listener.onOpponentResult(
+                            lastOpponentPlayerId,
+                            lastOpponentScore,
+                            lastOpponentDurationSeconds));
                 }
                 return;
-            case "MATCH_END":
-                if (parts.length >= 5) {
-                    matchFinished = true;
-                    localFinalScore = parseInt(parts[1]);
-                    localFinalDurationSeconds = parseLong(parts[2]);
-                    opponentFinalScore = parseInt(parts[3]);
-                    opponentFinalDurationSeconds = parseLong(parts[4]);
-                    opponentScore = opponentFinalScore;
-                    opponentDurationSeconds = opponentFinalDurationSeconds;
-                    opponentDead = true;
-                    dispatchListener(listener -> listener.onMatchFinished(
-                            localFinalScore,
-                            localFinalDurationSeconds,
-                            opponentFinalScore,
-                            opponentFinalDurationSeconds));
+            case "MATCH_RESULT":
+                if (parts.length >= 6) {
+                    winnerId = parseInt(parts[1]);
+                    playerOneScore = parseInt(parts[2]);
+                    playerOneDurationSeconds = parseLong(parts[3]);
+                    playerTwoScore = parseInt(parts[4]);
+                    playerTwoDurationSeconds = parseLong(parts[5]);
+                    matchResultKnown = true;
+                    dispatchListener(listener -> listener.onMatchResult(
+                            winnerId,
+                            playerOneScore,
+                            playerOneDurationSeconds,
+                            playerTwoScore,
+                            playerTwoDurationSeconds));
                 }
-                return;
-            case "OPPONENT_LEFT":
-                notifyDisconnected(parts.length >= 2 ? decode(parts[1]) : "\u5BF9\u624B\u5DF2\u79BB\u5F00\u5BF9\u5C40");
-                return;
-            case "ERROR":
-                notifyDisconnected(parts.length >= 2 ? decode(parts[1]) : "\u670D\u52A1\u5668\u62D2\u7EDD\u4E86\u8FDE\u63A5");
                 return;
             default:
+                postStatus(line);
         }
     }
 
@@ -195,18 +212,22 @@ public class SocketMatchClient {
             if (this.listener != listener) {
                 return;
             }
-            if (!matched) {
-                listener.onWaitingForOpponent(difficulty);
-                return;
+            if (!statusMessage.isEmpty()) {
+                listener.onStatus(statusMessage);
             }
-            listener.onMatched(opponentName, difficulty);
-            listener.onOpponentStateChanged(opponentName, opponentScore, opponentDead, opponentDurationSeconds);
-            if (matchFinished) {
-                listener.onMatchFinished(
-                        localFinalScore,
-                        localFinalDurationSeconds,
-                        opponentFinalScore,
-                        opponentFinalDurationSeconds);
+            if (opponentScoreKnown) {
+                listener.onOpponentScoreUpdate(lastOpponentPlayerId, lastOpponentScore, lastOpponentDurationSeconds);
+            }
+            if (opponentResultKnown) {
+                listener.onOpponentResult(lastOpponentPlayerId, lastOpponentScore, lastOpponentDurationSeconds);
+            }
+            if (matchResultKnown) {
+                listener.onMatchResult(
+                        winnerId,
+                        playerOneScore,
+                        playerOneDurationSeconds,
+                        playerTwoScore,
+                        playerTwoDurationSeconds);
             }
         });
     }
@@ -223,6 +244,11 @@ public class SocketMatchClient {
         });
     }
 
+    private void postStatus(String message) {
+        statusMessage = message == null ? "" : message;
+        dispatchListener(listener -> listener.onStatus(statusMessage));
+    }
+
     private void notifyDisconnected(String reason) {
         if (disconnectedNotified) {
             return;
@@ -232,8 +258,12 @@ public class SocketMatchClient {
     }
 
     private void sendLine(String message) {
+        sendLine(message, false);
+    }
+
+    private void sendLine(String message, boolean forceSend) {
         synchronized (writeLock) {
-            if (writer != null) {
+            if (writer != null && (forceSend || !manuallyClosed)) {
                 writer.println(message);
             }
         }
@@ -285,14 +315,6 @@ public class SocketMatchClient {
         } catch (NumberFormatException exception) {
             return 0L;
         }
-    }
-
-    private String encode(String value) {
-        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
-    }
-
-    private String decode(String value) {
-        return URLDecoder.decode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
 
     private interface ListenerAction {

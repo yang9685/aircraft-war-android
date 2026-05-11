@@ -26,42 +26,46 @@ public class GameActivity extends AppCompatActivity
         implements FloatingJoystickGameSurfaceView.GameSessionListener, SocketMatchClient.Listener {
 
     public static final String EXTRA_DIFFICULTY = "difficulty";
-    public static final String EXTRA_MULTIPLAYER = "multiplayer";
+    public static final String EXTRA_ONLINE_BATTLE = "online_battle";
     public static final String EXTRA_PLAYER_NAME = "player_name";
-    public static final String EXTRA_OPPONENT_NAME = "opponent_name";
+    public static final String EXTRA_PLAYER_ID = "player_id";
+    public static final String EXTRA_ROOM_ID = "room_id";
+    public static final String EXTRA_HOST = "host";
 
     private FloatingJoystickGameSurfaceView gameSurfaceView;
     private SoundManager soundManager;
     private Difficulty difficulty;
     private boolean gameOverHandled;
-    private boolean multiplayerMode;
+    private boolean onlineBattle;
     private boolean resultDialogShown;
     private String localPlayerName;
-    private String opponentPlayerName;
+    private int onlinePlayerId;
     private SocketMatchClient matchClient;
     private MatchResult localResult;
-    private MatchResult opponentResult;
+    private int opponentScore;
+    private long opponentDurationSeconds;
+    private boolean opponentDead;
     private AlertDialog waitingDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         difficulty = parseDifficulty(getIntent().getStringExtra(EXTRA_DIFFICULTY));
-        multiplayerMode = getIntent().getBooleanExtra(EXTRA_MULTIPLAYER, false);
+        onlineBattle = getIntent().getBooleanExtra(EXTRA_ONLINE_BATTLE, false);
         localPlayerName = getIntent().getStringExtra(EXTRA_PLAYER_NAME);
-        opponentPlayerName = getIntent().getStringExtra(EXTRA_OPPONENT_NAME);
+        onlinePlayerId = getIntent().getIntExtra(EXTRA_PLAYER_ID, 0);
         soundManager = SoundManager.getInstance(this);
         soundManager.setSoundEnabled(AppPreferences.isSoundEnabled(this));
 
         gameSurfaceView = new FloatingJoystickGameSurfaceView(this, difficulty, this, soundManager);
-        if (multiplayerMode) {
+        if (onlineBattle) {
             matchClient = MultiplayerSessionStore.getActiveClient();
             if (matchClient == null) {
                 finish();
                 return;
             }
             matchClient.setListener(this);
-            gameSurfaceView.setOpponentState(opponentPlayerName, 0, false);
+            gameSurfaceView.setOnlineBattle(true);
         }
         setContentView(gameSurfaceView);
 
@@ -102,9 +106,9 @@ public class GameActivity extends AppCompatActivity
     }
 
     @Override
-    public void onScoreChanged(int score) {
-        if (multiplayerMode && matchClient != null) {
-            matchClient.sendScore(score);
+    public void onScoreChanged(int score, long durationSeconds, Difficulty difficulty) {
+        if (onlineBattle && matchClient != null) {
+            matchClient.sendScore(score, durationSeconds);
         }
     }
 
@@ -116,15 +120,12 @@ public class GameActivity extends AppCompatActivity
         gameOverHandled = true;
         soundManager.stopBgm();
 
-        if (multiplayerMode) {
+        if (onlineBattle) {
             localResult = new MatchResult(score, durationSeconds, difficulty);
             if (matchClient != null) {
-                matchClient.sendDeath(score, durationSeconds);
+                matchClient.sendResult(score, durationSeconds);
             }
-            maybeShowMatchResult();
-            if (!resultDialogShown) {
-                showWaitingDialog();
-            }
+            showWaitingDialog();
             return;
         }
 
@@ -132,45 +133,60 @@ public class GameActivity extends AppCompatActivity
     }
 
     @Override
-    public void onConnecting() {
+    public void onStatus(String message) {
+        if (waitingDialog != null && waitingDialog.isShowing()) {
+            waitingDialog.setMessage(message);
+        }
+    }
+
+    @Override
+    public void onMatchStarted(int roomId, int playerId, Difficulty difficulty) {
         // No-op on battle page.
     }
 
     @Override
-    public void onWaitingForOpponent(Difficulty difficulty) {
-        // No-op on battle page.
-    }
-
-    @Override
-    public void onMatched(String opponentName, Difficulty difficulty) {
-        opponentPlayerName = opponentName;
+    public void onOpponentScoreUpdate(int playerId, int score, long durationSeconds) {
+        opponentScore = score;
+        opponentDurationSeconds = durationSeconds;
         if (gameSurfaceView != null) {
-            gameSurfaceView.setOpponentState(opponentPlayerName, 0, false);
+            gameSurfaceView.updateOpponentScore(score);
         }
     }
 
     @Override
-    public void onOpponentStateChanged(String opponentName, int score, boolean defeated, long durationSeconds) {
-        opponentPlayerName = opponentName;
-        if (defeated) {
-            opponentResult = new MatchResult(score, durationSeconds, difficulty);
-        }
+    public void onOpponentResult(int playerId, int score, long durationSeconds) {
+        opponentScore = score;
+        opponentDurationSeconds = durationSeconds;
+        opponentDead = true;
         if (gameSurfaceView != null) {
-            gameSurfaceView.setOpponentState(opponentPlayerName, score, defeated);
+            gameSurfaceView.updateOpponentScore(score);
+            gameSurfaceView.setOpponentDead(true);
         }
-        maybeShowMatchResult();
+        if (waitingDialog != null && waitingDialog.isShowing()) {
+            waitingDialog.setMessage("\u5BF9\u624B\u5DF2\u5B8C\u6210\u5BF9\u5C40\uff0c\u6B63\u5728\u751F\u6210\u6700\u7EC8\u7ED3\u679C\u2026");
+        }
     }
 
     @Override
-    public void onMatchFinished(int localScore, long localDurationSeconds, int opponentScore, long opponentDurationSeconds) {
+    public void onMatchResult(
+            int winnerId,
+            int playerOneScore,
+            long playerOneDurationSeconds,
+            int playerTwoScore,
+            long playerTwoDurationSeconds) {
         if (localResult == null) {
+            int localScore = onlinePlayerId == 1 ? playerOneScore : playerTwoScore;
+            long localDurationSeconds = onlinePlayerId == 1 ? playerOneDurationSeconds : playerTwoDurationSeconds;
             localResult = new MatchResult(localScore, localDurationSeconds, difficulty);
         }
-        opponentResult = new MatchResult(opponentScore, opponentDurationSeconds, difficulty);
+        opponentScore = onlinePlayerId == 1 ? playerTwoScore : playerOneScore;
+        opponentDurationSeconds = onlinePlayerId == 1 ? playerTwoDurationSeconds : playerOneDurationSeconds;
+        opponentDead = true;
         if (gameSurfaceView != null) {
-            gameSurfaceView.setOpponentState(opponentPlayerName, opponentScore, true);
+            gameSurfaceView.updateOpponentScore(opponentScore);
+            gameSurfaceView.setOpponentDead(true);
         }
-        maybeShowMatchResult();
+        maybeShowMatchResult(winnerId);
     }
 
     @Override
@@ -224,8 +240,8 @@ public class GameActivity extends AppCompatActivity
         });
     }
 
-    private void maybeShowMatchResult() {
-        if (!multiplayerMode || resultDialogShown || localResult == null || opponentResult == null || isFinishing()) {
+    private void maybeShowMatchResult(int winnerId) {
+        if (!onlineBattle || resultDialogShown || localResult == null || isFinishing()) {
             return;
         }
         resultDialogShown = true;
@@ -241,11 +257,13 @@ public class GameActivity extends AppCompatActivity
                 "\u4F60\uFF1A"
                         + UiText.formatDuration(localResult.durationSeconds)
                         + "\n"
-                        + (opponentPlayerName == null || opponentPlayerName.isEmpty() ? "\u5BF9\u624B" : opponentPlayerName)
+                        + "\u5BF9\u624B"
                         + "\uFF1A"
-                        + opponentResult.score
+                        + opponentScore
                         + " \u5206 / "
-                        + UiText.formatDuration(opponentResult.durationSeconds));
+                        + UiText.formatDuration(opponentDurationSeconds)
+                        + "\n"
+                        + buildResultLabel(winnerId));
         if (localPlayerName != null && !localPlayerName.trim().isEmpty()) {
             input.setText(localPlayerName);
             input.setSelection(localPlayerName.length());
@@ -303,10 +321,20 @@ public class GameActivity extends AppCompatActivity
     private void closeMultiplayerSession() {
         if (matchClient != null) {
             matchClient.setListener(null);
-            matchClient.disconnect();
+            matchClient.close();
             matchClient = null;
         }
         MultiplayerSessionStore.clear();
+    }
+
+    private String buildResultLabel(int winnerId) {
+        if (winnerId == 0) {
+            return "\u672C\u5C40\u7ED3\u679C\uFF1A\u5E73\u5C40";
+        }
+        if (winnerId == onlinePlayerId) {
+            return "\u672C\u5C40\u7ED3\u679C\uFF1A\u4F60\u83B7\u80DC\u4E86";
+        }
+        return "\u672C\u5C40\u7ED3\u679C\uFF1A\u5BF9\u624B\u83B7\u80DC";
     }
 
     private void openLeaderboard() {
@@ -331,12 +359,10 @@ public class GameActivity extends AppCompatActivity
     private static final class MatchResult {
         private final int score;
         private final long durationSeconds;
-        private final Difficulty difficulty;
 
         private MatchResult(int score, long durationSeconds, Difficulty difficulty) {
             this.score = score;
             this.durationSeconds = durationSeconds;
-            this.difficulty = difficulty;
         }
     }
 }

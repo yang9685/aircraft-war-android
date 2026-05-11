@@ -27,7 +27,7 @@ import edu.hitsz.aircraftwar.game.model.AbstractFlyingObject;
 public class FloatingJoystickGameSurfaceView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
 
     public interface GameSessionListener {
-        void onScoreChanged(int score);
+        void onScoreChanged(int score, long durationSeconds, Difficulty difficulty);
 
         void onGameOver(int score, long durationSeconds, Difficulty difficulty);
     }
@@ -97,8 +97,8 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
     private int joystickPointerId = MotionEvent.INVALID_POINTER_ID;
     private int opponentScore;
     private int lastReportedScore = Integer.MIN_VALUE;
+    private long lastScoreReportTimeMs;
     private long gameOverNotifyAtMs;
-    private String opponentName = "";
 
     private SpriteStore spriteStore;
     private GameConfig gameConfig;
@@ -190,7 +190,8 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
             gameOverNotified = false;
             bgmSynced = false;
             bossMusicActive = false;
-            lastReportedScore = Integer.MIN_VALUE;
+            lastReportedScore = 0;
+            lastScoreReportTimeMs = SystemClock.uptimeMillis();
             initJoystick();
         }
         startLoop();
@@ -262,12 +263,17 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
                         gameOverScore = gameEngine.getScore();
                         gameOverDurationSeconds = gameEngine.getElapsedMs() / 1000L;
                     }
-                    if (gameSessionListener != null) {
+                    if (gameSessionListener != null && multiplayerMode) {
                         int currentScore = gameEngine.getScore();
-                        if (currentScore != lastReportedScore) {
+                        if (currentScore != lastReportedScore && now - lastScoreReportTimeMs >= 500L) {
                             lastReportedScore = currentScore;
+                            lastScoreReportTimeMs = now;
                             final int updatedScore = currentScore;
-                            post(() -> gameSessionListener.onScoreChanged(updatedScore));
+                            final long updatedDurationSeconds = gameEngine.getElapsedMs() / 1000L;
+                            post(() -> gameSessionListener.onScoreChanged(
+                                    updatedScore,
+                                    updatedDurationSeconds,
+                                    difficulty));
                         }
                     }
                 }
@@ -302,10 +308,33 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
         }
     }
 
+    public void setOnlineBattle(boolean onlineBattle) {
+        synchronized (gameStateLock) {
+            multiplayerMode = onlineBattle;
+            if (!onlineBattle) {
+                opponentScore = 0;
+                opponentDead = false;
+            }
+        }
+    }
+
+    public void updateOpponentScore(int score) {
+        synchronized (gameStateLock) {
+            multiplayerMode = true;
+            opponentScore = Math.max(0, score);
+        }
+    }
+
+    public void setOpponentDead(boolean dead) {
+        synchronized (gameStateLock) {
+            multiplayerMode = true;
+            opponentDead = dead;
+        }
+    }
+
     public void setOpponentState(String name, int score, boolean defeated) {
         synchronized (gameStateLock) {
             multiplayerMode = true;
-            opponentName = name == null ? "" : name;
             opponentScore = Math.max(0, score);
             opponentDead = defeated;
         }
@@ -437,10 +466,7 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
                     primaryRect.bottom + dp(10f) + dp(70f));
             drawPanel(canvas, secondaryRect, radius);
             float opponentTextX = secondaryRect.left + dp(14f);
-            String displayName = opponentName == null || opponentName.isEmpty()
-                    ? "\u5bf9\u624b"
-                    : opponentName;
-            canvas.drawText(displayName, opponentTextX, secondaryRect.top + dp(22f), hudLabelPaint);
+            canvas.drawText("\u5BF9\u624B", opponentTextX, secondaryRect.top + dp(22f), hudLabelPaint);
             canvas.drawText(String.valueOf(opponentScore), opponentTextX, secondaryRect.top + dp(47f), hudValuePaint);
             canvas.drawText(
                     opponentDead ? "\u5df2\u88ab\u51fb\u843d" : "\u5b9e\u65f6\u540c\u6b65\u4e2d",
