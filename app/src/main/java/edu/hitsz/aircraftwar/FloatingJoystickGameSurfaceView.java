@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.os.SystemClock;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -25,6 +26,8 @@ import edu.hitsz.aircraftwar.game.SpriteStore;
 import edu.hitsz.aircraftwar.game.model.AbstractFlyingObject;
 
 public class FloatingJoystickGameSurfaceView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
+
+    private static final String TAG = "FloatingJoystickView";
 
     public interface GameSessionListener {
         void onScoreChanged(int score, long durationSeconds, Difficulty difficulty);
@@ -234,64 +237,69 @@ public class FloatingJoystickGameSurfaceView extends SurfaceView implements Surf
     @Override
     public void run() {
         lastFrameTimeMs = SystemClock.uptimeMillis();
-        while (running) {
-            long now = SystemClock.uptimeMillis();
-            long deltaMs = Math.max(1L, Math.min(40L, now - lastFrameTimeMs));
-            lastFrameTimeMs = now;
-            boolean shouldNotifyGameOver = false;
-            int gameOverScore = 0;
-            long gameOverDurationSeconds = 0L;
+        try {
+            while (running) {
+                long now = SystemClock.uptimeMillis();
+                long deltaMs = Math.max(1L, Math.min(40L, now - lastFrameTimeMs));
+                lastFrameTimeMs = now;
+                boolean shouldNotifyGameOver = false;
+                int gameOverScore = 0;
+                long gameOverDurationSeconds = 0L;
 
-            synchronized (gameStateLock) {
-                if (gameEngine != null) {
-                    if (!gameEngine.isGameOver()) {
-                        applyJoystickMovement(deltaMs);
-                    }
-                    gameEngine.update(deltaMs);
-                    for (SoundEffect soundEffect : gameEngine.drainSoundEffects()) {
-                        handleSoundEffect(soundEffect, now);
-                    }
-                    if (gameEngine.isGameOver() && !gameOverSequenceStarted) {
-                        startGameOverSequence(now);
-                    }
-                    if (!gameEngine.isGameOver()) {
-                        syncBattleBgm();
-                    }
-                    if (gameOverSequenceStarted && !gameOverNotified && now >= gameOverNotifyAtMs) {
-                        gameOverNotified = true;
-                        shouldNotifyGameOver = true;
-                        gameOverScore = gameEngine.getScore();
-                        gameOverDurationSeconds = gameEngine.getElapsedMs() / 1000L;
-                    }
-                    if (gameSessionListener != null && multiplayerMode) {
-                        int currentScore = gameEngine.getScore();
-                        if (currentScore != lastReportedScore && now - lastScoreReportTimeMs >= 500L) {
-                            lastReportedScore = currentScore;
-                            lastScoreReportTimeMs = now;
-                            final int updatedScore = currentScore;
-                            final long updatedDurationSeconds = gameEngine.getElapsedMs() / 1000L;
-                            post(() -> gameSessionListener.onScoreChanged(
-                                    updatedScore,
-                                    updatedDurationSeconds,
-                                    difficulty));
+                synchronized (gameStateLock) {
+                    if (gameEngine != null) {
+                        if (!gameEngine.isGameOver()) {
+                            applyJoystickMovement(deltaMs);
+                        }
+                        gameEngine.update(deltaMs);
+                        for (SoundEffect soundEffect : gameEngine.drainSoundEffects()) {
+                            handleSoundEffect(soundEffect, now);
+                        }
+                        if (gameEngine.isGameOver() && !gameOverSequenceStarted) {
+                            startGameOverSequence(now);
+                        }
+                        if (!gameEngine.isGameOver()) {
+                            syncBattleBgm();
+                        }
+                        if (gameOverSequenceStarted && !gameOverNotified && now >= gameOverNotifyAtMs) {
+                            gameOverNotified = true;
+                            shouldNotifyGameOver = true;
+                            gameOverScore = gameEngine.getScore();
+                            gameOverDurationSeconds = gameEngine.getElapsedMs() / 1000L;
+                        }
+                        if (gameSessionListener != null && multiplayerMode) {
+                            int currentScore = gameEngine.getScore();
+                            if (currentScore != lastReportedScore && now - lastScoreReportTimeMs >= 500L) {
+                                lastReportedScore = currentScore;
+                                lastScoreReportTimeMs = now;
+                                final int updatedScore = currentScore;
+                                final long updatedDurationSeconds = gameEngine.getElapsedMs() / 1000L;
+                                post(() -> gameSessionListener.onScoreChanged(
+                                        updatedScore,
+                                        updatedDurationSeconds,
+                                        difficulty));
+                            }
                         }
                     }
                 }
-            }
 
-            if (shouldNotifyGameOver && gameSessionListener != null) {
-                final int score = gameOverScore;
-                final long durationSeconds = gameOverDurationSeconds;
-                post(() -> gameSessionListener.onGameOver(score, durationSeconds, difficulty));
-            }
+                if (shouldNotifyGameOver && gameSessionListener != null) {
+                    final int score = gameOverScore;
+                    final long durationSeconds = gameOverDurationSeconds;
+                    post(() -> gameSessionListener.onGameOver(score, durationSeconds, difficulty));
+                }
 
-            drawFrame();
-            try {
-                Thread.sleep(FRAME_DELAY_MS);
-            } catch (InterruptedException interruptedException) {
-                Thread.currentThread().interrupt();
-                return;
+                drawFrame();
+                try {
+                    Thread.sleep(FRAME_DELAY_MS);
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
             }
+        } catch (RuntimeException exception) {
+            Log.e(TAG, "Render loop crashed", exception);
+            running = false;
         }
     }
 

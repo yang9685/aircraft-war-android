@@ -16,4 +16,12 @@
         <item name="colorPrimary">@color/primary</item>
         <item name="android:windowBackground">@color/surface_alt</item>
     </style>
+
+    <style name="ThemeOverlay.AircraftWar.TextInput" parent="ThemeOverlay.Material3.TextInputEditText.FilledBox">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textColorHint">@color/text_secondary</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorPrimary">@color/primary</item>
+    </style>
 </resources>

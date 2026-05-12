@@ -107,7 +107,10 @@ public final class MatchServerApp {
             this.difficulty = difficulty;
         }
 
-        private void forwardScore(int fromPlayerId, int score, long durationSeconds) {
+        private synchronized void forwardScore(int fromPlayerId, int score, long durationSeconds) {
+            if (finished) {
+                return;
+            }
             String message = "SCORE|" + fromPlayerId + "|" + score + "|" + durationSeconds;
             if (fromPlayerId == 1) {
                 playerTwo.send(message);
@@ -187,6 +190,9 @@ public final class MatchServerApp {
                 if (connected) {
                     System.out.println("Client connection lost: " + exception.getMessage());
                 }
+            } catch (RuntimeException exception) {
+                System.out.println("Client handler crashed: " + exception.getMessage());
+                exception.printStackTrace();
             } finally {
                 connected = false;
                 coordinator.handleDisconnect(this);
@@ -203,14 +209,26 @@ public final class MatchServerApp {
             this.playerId = playerId;
         }
 
-        public void send(String message) {
-            if (writer != null) {
+        public synchronized void send(String message) {
+            if (writer != null && connected && !socket.isClosed()) {
                 writer.println(message);
             }
         }
 
         public void closeSilently() {
             connected = false;
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException ignored) {
+                    // Best effort.
+                }
+                reader = null;
+            }
+            if (writer != null) {
+                writer.close();
+                writer = null;
+            }
             try {
                 socket.close();
             } catch (IOException ignored) {
@@ -223,6 +241,8 @@ public final class MatchServerApp {
             if (parts.length == 0) {
                 return;
             }
+            BattleRoom currentRoom = room;
+            int currentPlayerId = playerId;
             switch (parts[0]) {
                 case "JOIN":
                     if (parts.length >= 2) {
@@ -230,13 +250,13 @@ public final class MatchServerApp {
                     }
                     return;
                 case "SCORE":
-                    if (parts.length >= 3 && room != null) {
-                        room.forwardScore(playerId, parseInt(parts[1]), parseLong(parts[2]));
+                    if (parts.length >= 3 && currentRoom != null) {
+                        currentRoom.forwardScore(currentPlayerId, parseInt(parts[1]), parseLong(parts[2]));
                     }
                     return;
                 case "RESULT":
-                    if (parts.length >= 3 && room != null) {
-                        room.submitResult(playerId, parseInt(parts[1]), parseLong(parts[2]));
+                    if (parts.length >= 3 && currentRoom != null) {
+                        currentRoom.submitResult(currentPlayerId, parseInt(parts[1]), parseLong(parts[2]));
                     }
                     return;
                 case "BYE":

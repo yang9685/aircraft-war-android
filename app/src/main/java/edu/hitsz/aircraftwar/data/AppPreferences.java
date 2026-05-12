@@ -39,7 +39,7 @@ public final class AppPreferences {
     }
 
     public static String getMatchHost(Context context) {
-        return getPrefs(context).getString(KEY_MATCH_HOST, "10.0.2.2");
+        return getPrefs(context).getString(KEY_MATCH_HOST, "192.168.0.147");
     }
 
     public static void setMatchHost(Context context, String host) {

@@ -120,7 +120,12 @@ public class SocketMatchClient implements Closeable {
 
             String line;
             while (!manuallyClosed && (line = reader.readLine()) != null) {
-                handleServerMessage(line);
+                try {
+                    handleServerMessage(line);
+                } catch (RuntimeException exception) {
+                    notifyDisconnected("\u8054\u673A\u6570\u636E\u5904\u7406\u5931\u8D25\uff1A" + exception.getMessage());
+                    return;
+                }
             }
             if (!manuallyClosed) {
                 notifyDisconnected("\u670D\u52A1\u5668\u5DF2\u5173\u95ED\u8FDE\u63A5");
@@ -139,7 +144,7 @@ public class SocketMatchClient implements Closeable {
     }
 
     private void handleServerMessage(String line) {
-        String[] parts = line.split("\\|");
+        String[] parts = line.split("\\|", -1);
         if (parts.length == 0) {
             return;
         }
