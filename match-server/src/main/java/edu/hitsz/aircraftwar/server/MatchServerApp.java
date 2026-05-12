@@ -217,18 +217,6 @@ public final class MatchServerApp {
 
         public void closeSilently() {
             connected = false;
-            if (reader != null) {
-                try {
-                    reader.close();
-                } catch (IOException ignored) {
-                    // Best effort.
-                }
-                reader = null;
-            }
-            if (writer != null) {
-                writer.close();
-                writer = null;
-            }
             try {
                 socket.close();
             } catch (IOException ignored) {
