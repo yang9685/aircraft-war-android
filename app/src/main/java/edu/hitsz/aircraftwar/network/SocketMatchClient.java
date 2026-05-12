@@ -14,6 +14,8 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import edu.hitsz.aircraftwar.game.Difficulty;
 
@@ -40,6 +42,7 @@ public class SocketMatchClient implements Closeable {
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Object writeLock = new Object();
+    private final ExecutorService writeExecutor = Executors.newSingleThreadExecutor();
     private final String host;
     private final int port;
     private final Difficulty difficulty;
@@ -267,11 +270,13 @@ public class SocketMatchClient implements Closeable {
     }
 
     private void sendLine(String message, boolean forceSend) {
-        synchronized (writeLock) {
-            if (writer != null && (forceSend || !manuallyClosed)) {
-                writer.println(message);
+        writeExecutor.execute(() -> {
+            synchronized (writeLock) {
+                if (writer != null && (forceSend || !manuallyClosed)) {
+                    writer.println(message);
+                }
             }
-        }
+        });
     }
 
     private void closeSocket() {
@@ -296,6 +301,7 @@ public class SocketMatchClient implements Closeable {
             }
             socket = null;
         }
+        writeExecutor.shutdownNow();
     }
 
     private Difficulty parseDifficulty(String raw) {
