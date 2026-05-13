@@ -17,7 +17,9 @@ import com.google.android.material.textfield.TextInputEditText;
 
 import edu.hitsz.aircraftwar.audio.SoundManager;
 import edu.hitsz.aircraftwar.data.AppPreferences;
+import edu.hitsz.aircraftwar.data.OnlineLeaderboardClient;
 import edu.hitsz.aircraftwar.data.ScoreRepository;
+import edu.hitsz.aircraftwar.data.ScoreRecord;
 import edu.hitsz.aircraftwar.game.Difficulty;
 import edu.hitsz.aircraftwar.network.MultiplayerSessionStore;
 import edu.hitsz.aircraftwar.network.SocketMatchClient;
@@ -41,6 +43,7 @@ public class GameActivity extends AppCompatActivity
     private String localPlayerName;
     private int onlinePlayerId;
     private SocketMatchClient matchClient;
+    private OnlineLeaderboardClient onlineLeaderboardClient;
     private MatchResult localResult;
     private int opponentScore;
     private long opponentDurationSeconds;
@@ -54,6 +57,9 @@ public class GameActivity extends AppCompatActivity
         onlineBattle = getIntent().getBooleanExtra(EXTRA_ONLINE_BATTLE, false);
         localPlayerName = getIntent().getStringExtra(EXTRA_PLAYER_NAME);
         onlinePlayerId = getIntent().getIntExtra(EXTRA_PLAYER_ID, 0);
+        onlineLeaderboardClient = new OnlineLeaderboardClient(
+                AppPreferences.getMatchHost(this),
+                AppPreferences.getMatchPort(this));
         soundManager = SoundManager.getInstance(this);
         soundManager.setSoundEnabled(AppPreferences.isSoundEnabled(this));
 
@@ -235,6 +241,7 @@ public class GameActivity extends AppCompatActivity
                 playerName = "\u98de\u884c\u5458";
             }
             new ScoreRepository(this).saveScore(playerName, score, durationSeconds, difficulty);
+            uploadScoreToOnlineLeaderboard(playerName, score, durationSeconds, difficulty);
             dialog.dismiss();
             openLeaderboard();
         });
@@ -293,6 +300,7 @@ public class GameActivity extends AppCompatActivity
                         : localPlayerName.trim();
             }
             new ScoreRepository(this).saveScore(playerName, localResult.score, localResult.durationSeconds, difficulty);
+            uploadScoreToOnlineLeaderboard(playerName, localResult.score, localResult.durationSeconds, difficulty);
             dialog.dismiss();
             closeMultiplayerSession();
             openLeaderboard();
@@ -343,6 +351,29 @@ public class GameActivity extends AppCompatActivity
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(intent);
         finish();
+    }
+
+    private void uploadScoreToOnlineLeaderboard(
+            String playerName,
+            int score,
+            long durationSeconds,
+            Difficulty difficulty) {
+        if (onlineLeaderboardClient == null) {
+            return;
+        }
+        onlineLeaderboardClient.uploadScore(
+                new ScoreRecord(playerName, score, durationSeconds, difficulty, System.currentTimeMillis()),
+                new OnlineLeaderboardClient.UploadCallback() {
+                    @Override
+                    public void onSuccess() {
+                        // Best effort upload.
+                    }
+
+                    @Override
+                    public void onFailure(String reason) {
+                        // Keep local save successful even if online upload fails.
+                    }
+                });
     }
 
     private Difficulty parseDifficulty(String value) {

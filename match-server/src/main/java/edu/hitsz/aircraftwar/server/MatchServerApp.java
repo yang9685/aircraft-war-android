@@ -9,14 +9,19 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class MatchServerApp {
 
+    private static final int MAX_LEADERBOARD_RECORDS = 20;
     private final int port;
     private final MatchCoordinator coordinator = new MatchCoordinator();
+    private final OnlineLeaderboard leaderboard = new OnlineLeaderboard();
 
     public MatchServerApp(int port) {
         this.port = port;
@@ -39,7 +44,7 @@ public final class MatchServerApp {
             System.out.println("Aircraft War battle server listening on " + port);
             while (true) {
                 Socket socket = serverSocket.accept();
-                PlayerConnection playerConnection = new PlayerConnection(socket, coordinator);
+                PlayerConnection playerConnection = new PlayerConnection(socket, coordinator, leaderboard);
                 new Thread(playerConnection, "match-server-client").start();
             }
         }
@@ -86,6 +91,47 @@ public final class MatchServerApp {
                 player.room = null;
                 room.handleDisconnect(player);
             }
+        }
+    }
+
+    private static final class OnlineLeaderboard {
+        private final Map<Difficulty, List<LeaderboardEntry>> records = new EnumMap<>(Difficulty.class);
+
+        private OnlineLeaderboard() {
+            for (Difficulty difficulty : Difficulty.values()) {
+                records.put(difficulty, new ArrayList<>());
+            }
+        }
+
+        public synchronized void upload(LeaderboardEntry entry) {
+            List<LeaderboardEntry> entries = records.get(entry.difficulty);
+            entries.add(entry);
+            entries.sort(Comparator
+                    .comparingInt((LeaderboardEntry record) -> record.score).reversed()
+                    .thenComparing(Comparator.comparingLong((LeaderboardEntry record) -> record.createdAt).reversed()));
+            if (entries.size() > MAX_LEADERBOARD_RECORDS) {
+                entries.subList(MAX_LEADERBOARD_RECORDS, entries.size()).clear();
+            }
+        }
+
+        public synchronized List<LeaderboardEntry> list(Difficulty difficulty) {
+            return new ArrayList<>(records.get(difficulty));
+        }
+    }
+
+    private static final class LeaderboardEntry {
+        private final String playerName;
+        private final int score;
+        private final long durationSeconds;
+        private final Difficulty difficulty;
+        private final long createdAt;
+
+        private LeaderboardEntry(String playerName, int score, long durationSeconds, Difficulty difficulty, long createdAt) {
+            this.playerName = playerName;
+            this.score = score;
+            this.durationSeconds = durationSeconds;
+            this.difficulty = difficulty;
+            this.createdAt = createdAt;
         }
     }
 
@@ -163,6 +209,7 @@ public final class MatchServerApp {
     private static final class PlayerConnection implements Runnable {
         private final Socket socket;
         private final MatchCoordinator coordinator;
+        private final OnlineLeaderboard leaderboard;
         private BufferedReader reader;
         private PrintWriter writer;
         private volatile boolean connected = true;
@@ -170,9 +217,10 @@ public final class MatchServerApp {
         private int playerId;
         private Difficulty difficulty;
 
-        private PlayerConnection(Socket socket, MatchCoordinator coordinator) {
+        private PlayerConnection(Socket socket, MatchCoordinator coordinator, OnlineLeaderboard leaderboard) {
             this.socket = socket;
             this.coordinator = coordinator;
+            this.leaderboard = leaderboard;
         }
 
         @Override
@@ -250,8 +298,46 @@ public final class MatchServerApp {
                 case "BYE":
                     closeSilently();
                     return;
+                case "UPLOAD_SCORE":
+                    handleUploadScore(parts);
+                    return;
+                case "GET_LEADERBOARD":
+                    handleGetLeaderboard(parts);
+                    return;
                 default:
             }
+        }
+
+        private void handleUploadScore(String[] parts) {
+            if (parts.length < 6) {
+                send("ERROR|UPLOAD_SCORE malformed");
+                return;
+            }
+            Difficulty difficulty = parseDifficulty(parts[4]);
+            leaderboard.upload(new LeaderboardEntry(
+                    decode(parts[1]),
+                    parseInt(parts[2]),
+                    parseLong(parts[3]),
+                    difficulty,
+                    parseLong(parts[5])));
+            send("UPLOAD_OK");
+        }
+
+        private void handleGetLeaderboard(String[] parts) {
+            if (parts.length < 2) {
+                send("ERROR|GET_LEADERBOARD malformed");
+                return;
+            }
+            Difficulty difficulty = parseDifficulty(parts[1]);
+            for (LeaderboardEntry entry : leaderboard.list(difficulty)) {
+                send("LEADERBOARD_ITEM|"
+                        + encode(entry.playerName) + "|"
+                        + entry.score + "|"
+                        + entry.durationSeconds + "|"
+                        + entry.difficulty.name() + "|"
+                        + entry.createdAt);
+            }
+            send("LEADERBOARD_END");
         }
 
         private Difficulty parseDifficulty(String raw) {
@@ -276,6 +362,14 @@ public final class MatchServerApp {
             } catch (NumberFormatException exception) {
                 return 0L;
             }
+        }
+
+        private String encode(String raw) {
+            return raw == null ? "" : raw.replace("|", "%7C").replace("\n", " ");
+        }
+
+        private String decode(String raw) {
+            return raw == null ? "" : raw.replace("%7C", "|");
         }
     }
 }

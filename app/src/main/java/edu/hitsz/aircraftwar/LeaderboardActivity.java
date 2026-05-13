@@ -12,6 +12,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.List;
 
+import edu.hitsz.aircraftwar.data.AppPreferences;
+import edu.hitsz.aircraftwar.data.OnlineLeaderboardClient;
 import edu.hitsz.aircraftwar.data.ScoreRecord;
 import edu.hitsz.aircraftwar.data.ScoreRepository;
 import edu.hitsz.aircraftwar.game.Difficulty;
@@ -25,6 +27,8 @@ public class LeaderboardActivity extends AppCompatActivity {
     private TextView summaryTextView;
     private Button clearButton;
     private Difficulty selectedDifficulty;
+    private boolean onlineMode;
+    private OnlineLeaderboardClient onlineLeaderboardClient;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,6 +37,9 @@ public class LeaderboardActivity extends AppCompatActivity {
 
         scoreRepository = new ScoreRepository(this);
         selectedDifficulty = parseDifficulty(getIntent().getStringExtra(EXTRA_DIFFICULTY));
+        onlineLeaderboardClient = new OnlineLeaderboardClient(
+                AppPreferences.getMatchHost(this),
+                AppPreferences.getMatchPort(this));
 
         ListView scoresListView = findViewById(R.id.list_scores);
         summaryTextView = findViewById(R.id.text_summary);
@@ -44,6 +51,9 @@ public class LeaderboardActivity extends AppCompatActivity {
         scoresListView.setAdapter(adapter);
         scoresListView.setEmptyView(findViewById(R.id.panel_empty_scores));
         scoresListView.setOnItemClickListener((parent, view, position, id) -> {
+            if (onlineMode) {
+                return;
+            }
             ScoreRecord targetRecord = adapter.getItem(position);
             showDeleteConfirmDialog(targetRecord);
         });
@@ -66,6 +76,17 @@ public class LeaderboardActivity extends AppCompatActivity {
         });
         difficultyGroup.check(resolveDifficultyButtonId(selectedDifficulty));
 
+        MaterialButtonToggleGroup sourceGroup = findViewById(R.id.group_source);
+        sourceGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (!isChecked) {
+                return;
+            }
+            onlineMode = checkedId == R.id.button_source_online;
+            clearButton.setEnabled(!onlineMode && adapter.getCount() > 0);
+            reloadScores();
+        });
+        sourceGroup.check(R.id.button_source_local);
+
         clearButton.setOnClickListener(view -> {
             scoreRepository.clearScoresByDifficulty(selectedDifficulty);
             reloadScores();
@@ -80,6 +101,15 @@ public class LeaderboardActivity extends AppCompatActivity {
             return;
         }
 
+        if (onlineMode) {
+            loadOnlineScores();
+            return;
+        }
+
+        loadLocalScores();
+    }
+
+    private void loadLocalScores() {
         List<ScoreRecord> records = scoreRepository.loadScoresByDifficulty(selectedDifficulty);
         String difficultyLabel = UiText.getDifficultyLabel(this, selectedDifficulty);
         if (records.isEmpty()) {
@@ -95,6 +125,30 @@ public class LeaderboardActivity extends AppCompatActivity {
         }
         clearButton.setEnabled(!records.isEmpty());
         adapter.replaceData(records);
+    }
+
+    private void loadOnlineScores() {
+        clearButton.setEnabled(false);
+        summaryTextView.setText("正在加载在线排行榜...");
+        onlineLeaderboardClient.loadLeaderboard(selectedDifficulty, new OnlineLeaderboardClient.LoadCallback() {
+            @Override
+            public void onSuccess(List<ScoreRecord> records) {
+                String difficultyLabel = UiText.getDifficultyLabel(LeaderboardActivity.this, selectedDifficulty);
+                if (records.isEmpty()) {
+                    summaryTextView.setText("在线 " + difficultyLabel + " 榜单暂无记录");
+                } else {
+                    summaryTextView.setText("在线 " + difficultyLabel + " 榜单共 "
+                            + records.size() + " 条，最高分 " + records.get(0).getScore());
+                }
+                adapter.replaceData(records);
+            }
+
+            @Override
+            public void onFailure(String reason) {
+                summaryTextView.setText(reason);
+                adapter.replaceData(java.util.Collections.emptyList());
+            }
+        });
     }
 
     private void showDeleteConfirmDialog(ScoreRecord targetRecord) {
